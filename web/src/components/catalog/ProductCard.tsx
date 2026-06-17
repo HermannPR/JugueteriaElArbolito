@@ -57,7 +57,7 @@ export default function ProductCard({ product }: Props) {
             className="text-xs font-medium"
             style={{ color: product.categories.color }}
           >
-            {product.categories.emoji} {product.categories.name}
+            {product.categories.name}
           </span>
         )}
 

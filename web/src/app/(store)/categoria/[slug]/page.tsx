@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import ProductCard from "@/components/catalog/ProductCard";
@@ -38,14 +39,26 @@ export default async function CategoriaPage({ params }: { params: Promise<{ slug
   return (
     <div>
       {/* Header de categoría */}
-      <div
-        className="py-12 sm:py-16 text-white"
-        style={{ background: `linear-gradient(135deg, ${category.color}dd, ${category.color}99)` }}
-      >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="text-5xl mb-3">{category.emoji}</div>
-          <h1 className="font-display font-extrabold text-3xl sm:text-4xl">{category.name}</h1>
-          <p className="text-white/80 mt-2">
+      <div className="relative h-56 sm:h-72 text-white overflow-hidden">
+        {category.image_url ? (
+          <Image
+            src={category.image_url}
+            alt={category.name}
+            fill
+            priority
+            sizes="100vw"
+            className="object-cover"
+          />
+        ) : (
+          <div
+            className="absolute inset-0"
+            style={{ background: `linear-gradient(135deg, ${category.color}dd, ${category.color}99)` }}
+          />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/35 to-black/10" />
+        <div className="relative h-full max-w-7xl mx-auto px-4 sm:px-6 flex flex-col justify-end pb-8">
+          <h1 className="font-display font-extrabold text-3xl sm:text-4xl drop-shadow-lg">{category.name}</h1>
+          <p className="text-white/90 mt-2 drop-shadow">
             {products.length} producto{products.length !== 1 ? "s" : ""} disponible{products.length !== 1 ? "s" : ""}
           </p>
         </div>

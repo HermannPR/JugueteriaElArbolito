@@ -6,6 +6,7 @@ export interface Category {
   color: string;
   display_order: number;
   is_active: boolean;
+  image_url: string | null;
 }
 
 export interface Subcategory {

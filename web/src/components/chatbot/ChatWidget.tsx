@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { MessageCircle, X, Send, Loader2 } from "lucide-react";
+import { MessageCircle, X, Send, Loader2, TreePine } from "lucide-react";
 
 const WHATSAPP_NUMBER = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? "526641234567";
 const WHATSAPP_URL = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent("Hola, tengo una pregunta sobre un pedido o producto.")}`;
@@ -13,7 +13,7 @@ interface Message {
 
 const WELCOME: Message = {
   role: "assistant",
-  content: "¡Hola! Soy Arbolito 🌳, el asistente virtual de Juguetería El Arbolito. ¿En qué te puedo ayudar? Puedo buscar productos, informarte sobre envíos, o consultar el estado de tu pedido.",
+  content: "¡Hola! Soy Arbolito, el asistente virtual de Juguetería El Arbolito. ¿En qué te puedo ayudar? Puedo buscar productos, informarte sobre envíos, o consultar el estado de tu pedido.",
 };
 
 export default function ChatWidget() {
@@ -87,7 +87,7 @@ export default function ChatWidget() {
         <div className="fixed bottom-24 right-6 z-50 w-[340px] max-h-[520px] flex flex-col bg-white rounded-2xl shadow-2xl border border-border overflow-hidden">
           {/* Header */}
           <div className="bg-[#1E40AF] px-4 py-3 flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-lg">🌳</div>
+            <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center"><TreePine className="w-4 h-4 text-white" /></div>
             <div>
               <p className="text-white font-semibold text-sm">Arbolito</p>
               <p className="text-blue-200 text-xs">Asistente virtual · En línea</p>

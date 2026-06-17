@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { ShoppingCart, Search, Menu, X, TreePine } from "lucide-react";
+import Image from "next/image";
+import { ShoppingCart, Search, Menu, X } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,18 +27,15 @@ export default function Navbar() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
         <div className="flex items-center justify-between h-16 gap-4">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2 shrink-0">
-            <div className="w-8 h-8 bg-[#1E40AF] rounded-lg flex items-center justify-center">
-              <TreePine className="w-5 h-5 text-white" />
-            </div>
-            <div className="hidden sm:block">
-              <span className="font-display font-bold text-primary text-lg leading-none block">
-                El Arbolito
-              </span>
-              <span className="text-muted-foreground text-xs leading-none">
-                Desde 1975
-              </span>
-            </div>
+          <Link href="/" className="flex items-center gap-2 shrink-0" aria-label="Juguetería El Arbolito - Inicio">
+            <Image
+              src="/logo.png"
+              alt="Juguetería El Arbolito"
+              width={120}
+              height={48}
+              priority
+              className="h-12 w-auto object-contain"
+            />
           </Link>
 
           {/* Búsqueda */}
@@ -112,28 +110,28 @@ export default function Navbar() {
               Todo el catálogo
             </Link>
             <Link href="/categoria/didacticos" className="text-white/90 hover:text-white text-sm whitespace-nowrap transition-colors">
-              📚 Didácticos
+              Didácticos
             </Link>
             <Link href="/categoria/munecas-y-bebes" className="text-white/90 hover:text-white text-sm whitespace-nowrap transition-colors">
-              👶 Muñecas y bebés
+              Muñecas y bebés
             </Link>
             <Link href="/categoria/deportes" className="text-white/90 hover:text-white text-sm whitespace-nowrap transition-colors">
-              ⚽ Deportes
+              Deportes
             </Link>
             <Link href="/categoria/dinosaurios" className="text-white/90 hover:text-white text-sm whitespace-nowrap transition-colors">
-              🦕 Dinosaurios
+              Dinosaurios
             </Link>
             <Link href="/categoria/libros" className="text-white/90 hover:text-white text-sm whitespace-nowrap transition-colors">
-              📖 Libros
+              Libros
             </Link>
             <Link href="/categoria/coleccionables" className="text-white/90 hover:text-white text-sm whitespace-nowrap transition-colors">
-              ⭐ Coleccionables
+              Coleccionables
             </Link>
             <Link href="/categoria/casitas-y-juegos-de-jardin" className="text-white/90 hover:text-white text-sm whitespace-nowrap transition-colors">
-              🏡 Casitas
+              Casitas
             </Link>
             <Link href="/categoria/mi-alegria" className="text-white/90 hover:text-white text-sm whitespace-nowrap transition-colors">
-              🎉 Mi alegría
+              Mi alegría
             </Link>
           </div>
         </div>

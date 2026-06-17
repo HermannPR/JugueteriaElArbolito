@@ -1,8 +1,11 @@
 import Link from "next/link";
-import { ArrowRight, Package, Truck, ShieldCheck } from "lucide-react";
+import Image from "next/image";
+import { Package, Truck, ShieldCheck } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import ProductCard from "@/components/catalog/ProductCard";
+import HeroCarousel from "@/components/home/HeroCarousel";
+import { lifestyleImages } from "@/lib/lifestyle-images";
 import { createClient } from "@/lib/supabase/server";
 import type { Category, Product } from "@/types";
 
@@ -51,36 +54,8 @@ export default async function HomePage() {
 
   return (
     <div>
-      {/* Hero */}
-      <section className="relative bg-gradient-to-br from-[#1E40AF] via-[#1e3a8a] to-[#0f2472] text-white overflow-hidden">
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute top-10 left-10 w-40 h-40 rounded-full bg-white/20 blur-3xl" />
-          <div className="absolute bottom-10 right-20 w-60 h-60 rounded-full bg-accent/30 blur-3xl" />
-        </div>
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 py-20 sm:py-28">
-          <div className="max-w-2xl">
-            <div className="inline-flex items-center gap-2 bg-white/10 text-white/90 text-sm font-medium px-3 py-1 rounded-full mb-6">
-              🎄 Juguetería El Arbolito · Desde 1975
-            </div>
-            <h1 className="font-display font-extrabold text-4xl sm:text-5xl lg:text-6xl leading-tight mb-6">
-              Juguetes para{" "}
-              <span className="text-yellow-300">todos</span>{" "}
-              los momentos
-            </h1>
-            <p className="text-white/80 text-lg sm:text-xl mb-8 leading-relaxed">
-              Más de 2,000 juguetes seleccionados. Envíos a todo México desde nuestra tienda en Culiacán.
-            </p>
-            <div className="flex flex-wrap gap-3">
-              <Link href="/productos" className={cn(buttonVariants({ size: "lg" }), "bg-white text-primary hover:bg-white/90 font-bold shadow-lg")}>
-                Ver catálogo <ArrowRight className="ml-2 w-4 h-4" />
-              </Link>
-              <Link href="/nosotros" className={cn(buttonVariants({ size: "lg", variant: "outline" }), "border-white/40 text-white hover:bg-white/10 font-semibold")}>
-                Nuestra historia
-              </Link>
-            </div>
-          </div>
-        </div>
-      </section>
+      {/* Hero carousel */}
+      <HeroCarousel images={lifestyleImages} />
 
       {/* Ventajas */}
       <section className="bg-surface border-b border-border">
@@ -113,20 +88,31 @@ export default async function HomePage() {
             Ver todo →
           </Link>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
           {categories.map((cat) => (
             <Link
               key={cat.id}
               href={`/categoria/${cat.slug}`}
-              className="group flex flex-col items-center gap-2 p-4 rounded-2xl bg-surface hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 border border-border"
+              className="group relative aspect-[4/3] overflow-hidden rounded-2xl border border-border shadow-sm hover:shadow-lg transition-all duration-300 hover:-translate-y-0.5"
             >
-              <span
-                className="text-3xl w-14 h-14 flex items-center justify-center rounded-xl"
-                style={{ backgroundColor: `${cat.color}20` }}
-              >
-                {cat.emoji}
-              </span>
-              <span className="text-xs font-display font-semibold text-center leading-tight">
+              {cat.image_url ? (
+                <Image
+                  src={cat.image_url}
+                  alt={cat.name}
+                  fill
+                  sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+                  className="object-cover group-hover:scale-105 transition-transform duration-500"
+                />
+              ) : (
+                <span
+                  className="absolute inset-0 flex items-center justify-center text-5xl"
+                  style={{ backgroundColor: `${cat.color}20` }}
+                >
+                  {cat.emoji}
+                </span>
+              )}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/15 to-transparent" />
+              <span className="absolute bottom-3 left-3 right-3 text-white font-display font-bold text-base sm:text-lg leading-tight drop-shadow">
                 {cat.name}
               </span>
             </Link>
@@ -138,7 +124,7 @@ export default async function HomePage() {
       {featured.length > 0 && (
         <section className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="font-display font-bold text-2xl sm:text-3xl">⭐ Destacados</h2>
+            <h2 className="font-display font-bold text-2xl sm:text-3xl">Destacados</h2>
             <Link href="/productos?destacados=1" className="text-sm text-primary hover:underline font-medium">
               Ver más →
             </Link>
@@ -154,7 +140,7 @@ export default async function HomePage() {
         <section className="bg-surface py-12">
           <div className="max-w-7xl mx-auto px-4 sm:px-6">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="font-display font-bold text-2xl sm:text-3xl">🆕 Novedades</h2>
+              <h2 className="font-display font-bold text-2xl sm:text-3xl">Novedades</h2>
               <Link href="/productos?orden=nuevos" className="text-sm text-primary hover:underline font-medium">
                 Ver más →
               </Link>
@@ -170,7 +156,7 @@ export default async function HomePage() {
       <section className="max-w-7xl mx-auto px-4 sm:px-6 py-16">
         <div className="rounded-3xl bg-gradient-to-r from-[#1E40AF] to-[#3B82F6] p-8 sm:p-12 text-white text-center">
           <h2 className="font-display font-bold text-3xl sm:text-4xl mb-3">
-            ¿Prefieres visitarnos? 🎄
+            ¿Prefieres visitarnos?
           </h2>
           <p className="text-white/80 text-lg mb-6">
             Mariano Escobedo 294-Pte, Centro, Culiacán · Lun–Vie 10–18:30 · Sáb 10–18
