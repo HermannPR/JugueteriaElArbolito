@@ -1,0 +1,67 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* === Paleta El Arbolito === */
+    --color-brand:       oklch(0.41 0.18 264);  /* #1E40AF azul profundo */
+    --color-brand-light: oklch(0.62 0.18 252);  /* #3B82F6 azul cielo */
+    --color-brand-dark:  oklch(0.35 0.17 264);  /* #1e3a8a */
+    --color-accent:      oklch(0.53 0.24 17);   /* #E11D48 rojo cálido */
+    --color-surface:     oklch(0.98 0 0);        /* #F8FAFC */
+
+    /* === shadcn tokens === */
+    --background: oklch(1 0 0);
+    --foreground: oklch(0.145 0 0);
+    --card: oklch(1 0 0);
+    --card-foreground: oklch(0.145 0 0);
+    --popover: oklch(1 0 0);
+    --popover-foreground: oklch(0.145 0 0);
+    --primary: oklch(0.41 0.18 264);
+    --primary-foreground: oklch(0.985 0 0);
+    --secondary: oklch(0.98 0 0);
+    --secondary-foreground: oklch(0.205 0 0);
+    --muted: oklch(0.97 0 0);
+    --muted-foreground: oklch(0.556 0 0);
+    --accent: oklch(0.62 0.18 252);
+    --accent-foreground: oklch(0.985 0 0);
+    --destructive: oklch(0.53 0.24 17);
+    --destructive-foreground: oklch(0.985 0 0);
+    --border: oklch(0.922 0 0);
+    --input: oklch(0.922 0 0);
+    --ring: oklch(0.62 0.18 252);
+    --radius: 0.75rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    font-family: var(--font-inter), sans-serif;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-poppins), sans-serif;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  .bg-surface {
+    background-color: var(--color-surface);
+  }
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}
