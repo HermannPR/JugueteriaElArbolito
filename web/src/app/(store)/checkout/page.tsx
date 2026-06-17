@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ChevronRight, ShoppingCart, MapPin, CreditCard, FileText, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -28,7 +27,6 @@ const ESTADOS_MX = [
 
 export default function CheckoutPage() {
   const { items, subtotal, clearCart } = useCart();
-  const router = useRouter();
   const [step, setStep] = useState<Step>("contacto");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
