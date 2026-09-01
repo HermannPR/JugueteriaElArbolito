@@ -4,6 +4,22 @@
 
 Web store for ElArbolito
 
+Production e-commerce for a real toy store, with an admin dashboard and point-of-sale synced to Mercado Pago.
+
+## Run it
+
+The web app lives in `web/`:
+
+```bash
+cd web
+npm install
+npm run dev
+```
+
+## Demo mode
+
+If the Supabase env vars (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`) aren't configured, the storefront automatically renders built-in sample products and shows a "Modo demo" banner, so the public preview works without a backend. Connect Supabase to show live inventory.
+
 ## Screenshots
 
 ![Storefront](docs/storefront.png)
