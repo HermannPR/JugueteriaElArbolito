@@ -6,6 +6,10 @@ Web store for ElArbolito
 
 Production e-commerce for a real toy store, with an admin dashboard and point-of-sale synced to Mercado Pago.
 
+## How it works
+
+The storefront (Next.js) and the admin/point-of-sale share one catalog and one inventory in Supabase. Checkout goes through **Mercado Pago**, and the stock is reconciled so an online order and a local sale don't double-count the same item. When the POS is offline, it keeps local state and syncs back once the server connection returns.
+
 ## Run it
 
 The web app lives in `web/`:
