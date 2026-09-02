@@ -3,24 +3,21 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import ProductCard from "@/components/catalog/ProductCard";
 import type { Product, Category } from "@/types";
-import { isDemoMode, demoCategoryBySlug, demoProductsForCategory } from "@/lib/demo-data";
 
 async function getCategory(slug: string): Promise<Category | null> {
-  if (isDemoMode()) return demoCategoryBySlug(slug);
   const supabase = await createClient();
-  const { data, error } = await supabase
+  const { data } = await supabase
     .from("categories")
     .select("*")
     .eq("slug", slug)
     .eq("is_active", true)
     .single();
-  return error || !data ? demoCategoryBySlug(slug) : data;
+  return data;
 }
 
 async function getProducts(categoryId: string): Promise<Product[]> {
-  if (isDemoMode()) return demoProductsForCategory(categoryId);
   const supabase = await createClient();
-  const { data, error } = await supabase
+  const { data } = await supabase
     .from("products")
     .select("*, categories(name,slug,emoji,color)")
     .eq("category_id", categoryId)
@@ -29,7 +26,7 @@ async function getProducts(categoryId: string): Promise<Product[]> {
     .gt("stock", 0)
     .order("name")
     .limit(48);
-  return error || !data || data.length === 0 ? demoProductsForCategory(categoryId) : (data as Product[]);
+  return (data as Product[]) ?? [];
 }
 
 export default async function CategoriaPage({ params }: { params: Promise<{ slug: string }> }) {

@@ -8,23 +8,20 @@ import HeroCarousel from "@/components/home/HeroCarousel";
 import { lifestyleImages } from "@/lib/lifestyle-images";
 import { createClient } from "@/lib/supabase/server";
 import type { Category, Product } from "@/types";
-import { isDemoMode, demoCategories, demoFeaturedProducts, demoRecentProducts } from "@/lib/demo-data";
 
 async function getCategories(): Promise<Category[]> {
-  if (isDemoMode()) return demoCategories;
   const supabase = await createClient();
-  const { data, error } = await supabase
+  const { data } = await supabase
     .from("categories")
     .select("*")
     .eq("is_active", true)
     .order("display_order");
-  return error || !data || data.length === 0 ? demoCategories : data;
+  return data ?? [];
 }
 
 async function getFeaturedProducts(): Promise<Product[]> {
-  if (isDemoMode()) return demoFeaturedProducts;
   const supabase = await createClient();
-  const { data, error } = await supabase
+  const { data } = await supabase
     .from("products")
     .select("*, categories(name,slug,emoji,color)")
     .eq("is_active", true)
@@ -32,13 +29,12 @@ async function getFeaturedProducts(): Promise<Product[]> {
     .eq("is_featured", true)
     .gt("stock", 0)
     .limit(8);
-  return error || !data || data.length === 0 ? demoFeaturedProducts : (data as Product[]);
+  return (data as Product[]) ?? [];
 }
 
 async function getRecentProducts(): Promise<Product[]> {
-  if (isDemoMode()) return demoRecentProducts;
   const supabase = await createClient();
-  const { data, error } = await supabase
+  const { data } = await supabase
     .from("products")
     .select("*, categories(name,slug,emoji,color)")
     .eq("is_active", true)
@@ -46,7 +42,7 @@ async function getRecentProducts(): Promise<Product[]> {
     .gt("stock", 0)
     .order("created_at", { ascending: false })
     .limit(8);
-  return error || !data || data.length === 0 ? demoRecentProducts : (data as Product[]);
+  return (data as Product[]) ?? [];
 }
 
 export default async function HomePage() {
@@ -58,11 +54,6 @@ export default async function HomePage() {
 
   return (
     <div>
-      {isDemoMode() && (
-        <div className="bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs text-center py-2">
-          Modo demo: datos de ejemplo. Conecta Supabase para ver el catálogo real.
-        </div>
-      )}
       {/* Hero carousel */}
       <HeroCarousel images={lifestyleImages} />
 
