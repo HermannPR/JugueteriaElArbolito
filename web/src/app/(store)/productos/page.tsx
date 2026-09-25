@@ -7,6 +7,7 @@ import type { Category, Product } from "@/types";
 
 export const metadata: Metadata = {
   title: "Catálogo",
+  alternates: { canonical: "/productos" },
   description: "Todo el catálogo de Juguetería El Arbolito: didácticos, muñecas, deportes, libros y más. Envíos a todo México.",
 };
 

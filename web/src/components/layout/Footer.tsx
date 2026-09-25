@@ -15,7 +15,7 @@ export default function Footer() {
               </div>
               <div>
                 <p className="font-display font-bold text-lg leading-none">El Arbolito</p>
-                <p className="text-white/60 text-xs">Desde 1975</p>
+                <p className="text-white/80 text-xs">Desde 1975</p>
               </div>
             </div>
             <p className="text-white/70 text-sm">
@@ -86,7 +86,7 @@ export default function Footer() {
           </div>
         </div>
 
-        <div className="border-t border-white/20 mt-10 pt-6 flex flex-col sm:flex-row justify-between items-center gap-3 text-sm text-white/50">
+        <div className="border-t border-white/20 mt-10 pt-6 flex flex-col sm:flex-row justify-between items-center gap-3 text-sm text-white/75">
           <p>© {new Date().getFullYear()} Juguetería El Arbolito. Todos los derechos reservados.</p>
           <p>Envíos a todo México · Sin devoluciones · Facturación en tienda</p>
         </div>

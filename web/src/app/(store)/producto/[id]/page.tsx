@@ -43,6 +43,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const price = Number(product.price).toLocaleString("es-MX", { style: "currency", currency: "MXN" });
   return {
     title: product.name,
+    alternates: { canonical: `/producto/${product.id}` },
     description: product.description?.slice(0, 155) || `${product.name} por ${price} en Juguetería El Arbolito. Envíos a todo México.`,
     openGraph: product.image_url ? { images: [product.image_url] } : undefined,
   };

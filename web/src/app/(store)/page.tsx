@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import Image from "next/image";
 import { Package, Truck, ShieldCheck } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
@@ -6,6 +7,8 @@ import { cn } from "@/lib/utils";
 import ProductCard from "@/components/catalog/ProductCard";
 import HeroCarousel from "@/components/home/HeroCarousel";
 import { lifestyleImages } from "@/lib/lifestyle-images";
+
+export const metadata: Metadata = { alternates: { canonical: "/" } };
 import { createClient } from "@/lib/supabase/server";
 import type { Category, Product } from "@/types";
 
@@ -98,7 +101,7 @@ export default async function HomePage() {
               {cat.image_url ? (
                 <Image
                   src={cat.image_url}
-                  alt={cat.name}
+                  alt=""
                   fill
                   sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
                   className="object-cover group-hover:scale-105 transition-transform duration-500"

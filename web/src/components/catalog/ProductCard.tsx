@@ -62,9 +62,9 @@ export default function ProductCard({ product }: Props) {
         )}
 
         <Link href={`/producto/${product.id}`} className="flex-1">
-          <h3 className="font-display font-semibold text-sm leading-snug line-clamp-2 hover:text-primary transition-colors">
+          <h2 className="font-display font-semibold text-sm leading-snug line-clamp-2 hover:text-primary transition-colors">
             {product.name}
-          </h3>
+          </h2>
         </Link>
 
         <div className="flex items-baseline gap-2">

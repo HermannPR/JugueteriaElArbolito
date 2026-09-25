@@ -34,8 +34,11 @@ export default function HeroCarousel({ images, intervalMs = 5000 }: Props) {
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
     >
-      {/* Slides */}
-      {images.map((src, i) => (
+      {/* Slides: solo se montan la actual, la anterior (para el fundido) y la siguiente
+          (precarga). Montar las 30 descargaba ~2 MB y retrasaba el primer pintado en celulares. */}
+      {images.map((src, i) => {
+        const near = i === index || i === (index + 1) % count || i === (index - 1 + count) % count;
+        return near && (
         <div
           key={src}
           className={cn(
@@ -53,7 +56,8 @@ export default function HeroCarousel({ images, intervalMs = 5000 }: Props) {
             className="object-cover"
           />
         </div>
-      ))}
+        );
+      })}
 
       {/* Legibility gradient */}
       <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/40 to-black/10" />

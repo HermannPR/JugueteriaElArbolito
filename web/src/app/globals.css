@@ -23,7 +23,7 @@
     --secondary: oklch(0.98 0 0);
     --secondary-foreground: oklch(0.205 0 0);
     --muted: oklch(0.97 0 0);
-    --muted-foreground: oklch(0.556 0 0);
+    --muted-foreground: oklch(0.446 0.043 257.3); /* #475569: contraste AA sobre blanco y gris claro */
     --accent: oklch(0.62 0.18 252);
     --accent-foreground: oklch(0.985 0 0);
     --destructive: oklch(0.53 0.24 17);

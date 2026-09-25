@@ -29,7 +29,7 @@ const config: Config = {
         },
         muted: {
           DEFAULT: "#F1F5F9",
-          foreground: "#64748b",
+          foreground: "#475569",
         },
         card: {
           DEFAULT: "#ffffff",

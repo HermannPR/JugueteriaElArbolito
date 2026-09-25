@@ -21,6 +21,7 @@ export default function SortSelect({ currentOrden }: Props) {
 
   return (
     <select
+      aria-label="Ordenar productos"
       className="text-sm border border-border rounded-lg px-3 py-2 bg-background focus:outline-none focus:ring-2 focus:ring-[#3B82F6]"
       value={currentOrden ?? ""}
       onChange={handleChange}

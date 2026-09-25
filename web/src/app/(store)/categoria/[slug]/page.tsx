@@ -35,6 +35,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   if (!category) return { title: "Categoría no encontrada" };
   return {
     title: category.name,
+    alternates: { canonical: `/categoria/${category.slug}` },
     description: `${category.name} en Juguetería El Arbolito, Culiacán. Envíos a todo México.`,
     openGraph: category.image_url ? { images: [category.image_url] } : undefined,
   };
