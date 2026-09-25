@@ -30,6 +30,7 @@ export const metadata: Metadata = {
     siteName: "Juguetería El Arbolito",
     title: "Juguetería El Arbolito | Culiacán, desde 1975",
     description: "Más de 2,000 juguetes para todas las edades. Envíos a todo México.",
+    images: [{ url: "/logo-full.png", width: 1024, height: 1024, alt: "Juguetería El Arbolito" }],
   },
   twitter: {
     card: "summary_large_image",

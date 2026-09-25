@@ -1,8 +1,11 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import Link from "next/link";
+import type { Metadata } from "next";
 import { CheckCircle, Clock, XCircle, MapPin, Phone, Mail } from "lucide-react";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = { title: "Tu pedido", robots: { index: false, follow: false } };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -30,7 +33,7 @@ export default async function OrderPage({
   if (!order) {
     return (
       <div className="max-w-lg mx-auto px-4 py-20 text-center">
-        <p className="text-lg font-semibold mb-2">Pedido no encontrado</p>
+        <h1 className="text-lg font-semibold mb-2">Pedido no encontrado</h1>
         <p className="text-sm text-muted-foreground mb-4">Abre tu pedido desde la liga que te enviamos al pagar.</p>
         <Link href="/" className="text-primary hover:underline text-sm">Volver al inicio</Link>
       </div>

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -27,6 +28,16 @@ async function getProducts(categoryId: string): Promise<Product[]> {
     .order("name")
     .limit(48);
   return (data as Product[]) ?? [];
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const category = await getCategory((await params).slug);
+  if (!category) return { title: "Categoría no encontrada" };
+  return {
+    title: category.name,
+    description: `${category.name} en Juguetería El Arbolito, Culiacán. Envíos a todo México.`,
+    openGraph: category.image_url ? { images: [category.image_url] } : undefined,
+  };
 }
 
 export default async function CategoriaPage({ params }: { params: Promise<{ slug: string }> }) {

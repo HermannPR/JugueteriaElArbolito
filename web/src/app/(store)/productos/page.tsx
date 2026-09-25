@@ -2,7 +2,13 @@ import { createClient } from "@/lib/supabase/server";
 import ProductCard from "@/components/catalog/ProductCard";
 import CatalogFilters from "@/components/catalog/CatalogFilters";
 import SortSelect from "@/components/catalog/SortSelect";
+import type { Metadata } from "next";
 import type { Category, Product } from "@/types";
+
+export const metadata: Metadata = {
+  title: "Catálogo",
+  description: "Todo el catálogo de Juguetería El Arbolito: didácticos, muñecas, deportes, libros y más. Envíos a todo México.",
+};
 
 interface SearchParams {
   q?: string;

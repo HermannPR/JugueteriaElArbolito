@@ -28,14 +28,11 @@ export default function Navbar() {
         <div className="flex items-center justify-between h-16 gap-4">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2 shrink-0" aria-label="Juguetería El Arbolito - Inicio">
-            <Image
-              src="/logo.png"
-              alt="Juguetería El Arbolito"
-              width={120}
-              height={48}
-              priority
-              className="h-12 w-auto object-contain"
-            />
+            <Image src="/logo-mark.png" alt="" width={40} height={42} priority className="h-10 w-auto" />
+            <span className="leading-tight">
+              <span className="block font-display font-bold text-lg text-primary">El Arbolito</span>
+              <span className="block text-[11px] text-muted-foreground">Juguetería · desde 1975</span>
+            </span>
           </Link>
 
           {/* Búsqueda */}
@@ -54,20 +51,24 @@ export default function Navbar() {
 
           {/* Acciones */}
           <div className="flex items-center gap-2">
-            <Link href="/carrito">
-              <Button variant="ghost" size="icon" className="relative">
-                <ShoppingCart className="w-5 h-5" />
-                {itemCount > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                    {itemCount > 9 ? "9+" : itemCount}
-                  </span>
-                )}
-              </Button>
+            <Link
+              href="/carrito"
+              aria-label={itemCount > 0 ? `Carrito, ${itemCount} producto${itemCount === 1 ? "" : "s"}` : "Carrito"}
+              className="relative inline-flex items-center justify-center w-10 h-10 rounded-lg hover:bg-surface transition-colors"
+            >
+              <ShoppingCart className="w-5 h-5" />
+              {itemCount > 0 && (
+                <span aria-hidden="true" className="absolute -top-0.5 -right-0.5 bg-destructive text-destructive-foreground text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                  {itemCount > 9 ? "9+" : itemCount}
+                </span>
+              )}
             </Link>
             <Button
               variant="ghost"
               size="icon"
               className="sm:hidden"
+              aria-label={menuOpen ? "Cerrar menú" : "Abrir menú"}
+              aria-expanded={menuOpen}
               onClick={() => setMenuOpen(!menuOpen)}
             >
               {menuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -94,8 +95,8 @@ export default function Navbar() {
               <Link href="/productos" className="py-2 px-3 text-sm font-medium hover:bg-surface rounded-md" onClick={() => setMenuOpen(false)}>
                 Catálogo
               </Link>
-              <Link href="/cuenta" className="py-2 px-3 text-sm font-medium hover:bg-surface rounded-md" onClick={() => setMenuOpen(false)}>
-                Mi cuenta
+              <Link href="/contacto" className="py-2 px-3 text-sm font-medium hover:bg-surface rounded-md" onClick={() => setMenuOpen(false)}>
+                Contacto
               </Link>
             </nav>
           </div>
