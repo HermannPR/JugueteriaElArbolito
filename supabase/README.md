@@ -1,7 +1,9 @@
 # Supabase — puesta en marcha
 
-El proyecto original (`nigxlspxlurdxvwnlffu`) ya no existe y su esquema nunca se guardó
-en el repo. Esta carpeta lo reconstruye a partir del código de `/web` y `/agent`.
+> El proyecto original `nigxlspxlurdxvwnlffu` ya está reconstruido con estas migraciones
+> (ver `legacy/20260925_rebuild_nigxlspxlurdxvwnlffu.md`). Estos pasos son para un proyecto nuevo.
+
+El esquema anterior nunca se guardó en el repo. Esta carpeta lo reconstruye a partir del código de `/web` y `/agent`.
 
 ## 1. Crear el proyecto
 1. supabase.com → New project. Región: la más cercana a México (p. ej. `us-west-1` o `us-east-1`).
@@ -14,6 +16,7 @@ En **SQL Editor**, ejecutar en este orden (copiar y pegar cada archivo):
 2. `migrations/20260925000002_rls_and_functions.sql`: seguridad, `apply_stock_movement` y buckets.
 3. `migrations/20260925000003_roles_and_audit.sql`: roles del panel, bloqueo y bitácora.
 4. `migrations/20260925000004_eleventa_sync.sql`: sincronización con Eleventa.
+5. `migrations/20260925000005_hardening.sql`: endurecimiento según el linter de Supabase.
 5. `seed_inventario.sql`: 2,395 productos. Todos entran con `is_approved = false`.
 
 Los UUID de categorías en el esquema son los mismos del proyecto original, así que

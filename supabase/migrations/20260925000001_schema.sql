@@ -1,8 +1,8 @@
 -- =============================================================================
 -- Juguetería El Arbolito — esquema base
--- Reconstruido el 2026-09-25 a partir del código de /web y /agent, porque el
--- proyecto Supabase original (nigxlspxlurdxvwnlffu) ya no existe y su esquema
--- nunca se guardó en el repo.
+-- Reconstruido el 2026-09-25 a partir del código de /web y /agent: el esquema
+-- anterior nunca se guardó en el repo. Para el proyecto original ver
+-- supabase/legacy/20260925_rebuild_nigxlspxlurdxvwnlffu.md.
 --
 -- Orden de carga en un proyecto nuevo:
 --   1. supabase/migrations/*.sql  (en orden)
@@ -12,7 +12,7 @@
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 CREATE OR REPLACE FUNCTION set_updated_at()
-RETURNS TRIGGER LANGUAGE plpgsql AS $$
+RETURNS TRIGGER LANGUAGE plpgsql SET search_path = public AS $$
 BEGIN
   NEW.updated_at = now();
   RETURN NEW;
@@ -61,7 +61,7 @@ INSERT INTO categories (id, name, slug, emoji, color, display_order) VALUES
   ('994bb4e9-a0fa-4ba3-a90e-5f2e27c62fac', 'Casitas y juegos de jardín', 'casitas-y-juegos-de-jardin', '🏡', '#06B6D4', 7),
   ('f10ecd65-9aae-423e-8ca4-198a5e313d49', 'Mi alegría',                 'mi-alegria',                 '🎉', '#F97316', 8);
 
--- Subcategorías sin productos en el seed no tenían UUID recuperable: reciben uno nuevo.
+-- Todas las subcategorías conservan el UUID del proyecto original (verificado en la base el 2026-09-25).
 INSERT INTO subcategories (id, category_id, name, slug, display_order) VALUES
   ('d11da0ac-3e31-4ca8-aa66-cbebbfbd78e3', '049aaedf-7847-4c84-9232-4f165451e4ec', 'Estimulación temprana',     'estimulacion-temprana',     1),
   ('bfe239eb-d12e-4ef4-8dba-d55026f6aa4e', '049aaedf-7847-4c84-9232-4f165451e4ec', 'Rompecabezas',              'rompecabezas',              2),
@@ -71,15 +71,15 @@ INSERT INTO subcategories (id, category_id, name, slug, display_order) VALUES
   ('87ee0497-6a42-4f27-8f0c-bd2eafcd6387', '049aaedf-7847-4c84-9232-4f165451e4ec', 'Arte y manualidades',       'arte-y-manualidades',       6),
   ('f4fee630-549d-4ec1-9f3f-818087a1b070', '049aaedf-7847-4c84-9232-4f165451e4ec', 'Musicales',                 'musicales',                 7),
   ('f61147b3-3ea7-4dd7-9ec6-b6d95cb58110', '049aaedf-7847-4c84-9232-4f165451e4ec', 'Matemáticas y lógica',      'matematicas-y-logica',      8),
-  (gen_random_uuid(),                      '049aaedf-7847-4c84-9232-4f165451e4ec', 'Lenguaje y lectura',        'lenguaje-y-lectura',        9),
+  ('c86677ed-3ba4-4c4d-9104-1107162b3b17', '049aaedf-7847-4c84-9232-4f165451e4ec', 'Lenguaje y lectura',        'lenguaje-y-lectura',        9),
   ('b53f0324-22c3-4c81-bf71-59a25620e698', '049aaedf-7847-4c84-9232-4f165451e4ec', 'Motricidad fina',           'motricidad-fina',           10),
-  (gen_random_uuid(),                      '049aaedf-7847-4c84-9232-4f165451e4ec', 'Motricidad gruesa',         'motricidad-gruesa',         11),
+  ('1713fb3a-f42a-4e43-8b34-eb84d098f9cf', '049aaedf-7847-4c84-9232-4f165451e4ec', 'Motricidad gruesa',         'motricidad-gruesa',         11),
   ('e0ec790d-94ac-4473-87ee-c2d1bcf61f10', '049aaedf-7847-4c84-9232-4f165451e4ec', 'Sensorial',                 'sensorial',                 12),
   ('21973bbe-3ef4-4ecd-92d3-cd00ba819f37', 'cc029478-05af-4998-9130-bd21084ac633', 'Muñecas',                   'munecas',                   1),
   ('3393bb3a-2d60-47b1-b04e-2d36b4ec72f2', 'cc029478-05af-4998-9130-bd21084ac633', 'Bebés',                     'bebes',                     2),
-  (gen_random_uuid(),                      'cc029478-05af-4998-9130-bd21084ac633', 'Accesorios para muñecas',   'accesorios-para-munecas',   3),
+  ('8cdb57f4-dba8-4846-a956-27deba96253b', 'cc029478-05af-4998-9130-bd21084ac633', 'Accesorios para muñecas',   'accesorios-para-munecas',   3),
   ('97b2c54a-0211-4d63-89fa-240aa167423e', 'cc029478-05af-4998-9130-bd21084ac633', 'Carriolas y cunas',         'carriolas-y-cunas',         4),
-  (gen_random_uuid(),                      'cc029478-05af-4998-9130-bd21084ac633', 'Casas de muñecas',          'casas-de-munecas',          5),
+  ('b07885d4-4911-4b46-be41-cf457d7982ca', 'cc029478-05af-4998-9130-bd21084ac633', 'Casas de muñecas',          'casas-de-munecas',          5),
   ('9eba6814-acaa-4b02-bcf0-1f8a8d21c613', 'cc029478-05af-4998-9130-bd21084ac633', 'Peluches',                  'peluches',                  6),
   ('ef5fec51-ca18-4f44-b78c-0761030161f7', 'cc029478-05af-4998-9130-bd21084ac633', 'Sets de té y cocina',       'sets-de-te-y-cocina',       7),
   ('8c31e8f7-8a12-452e-9ae1-805915fdfd56', 'fb429cc3-ed2d-4836-a8a1-ceb3d040fef4', 'Deportes al aire libre',    'deportes-al-aire-libre',    1),
@@ -88,7 +88,7 @@ INSERT INTO subcategories (id, category_id, name, slug, display_order) VALUES
   ('c0e8261d-65c1-4cda-a041-7d9f80fca015', 'fb429cc3-ed2d-4836-a8a1-ceb3d040fef4', 'Triciclos y scooters',      'triciclos-y-scooters',      4),
   ('9383605b-c26a-4dbf-9945-05d83391714b', '1bce9434-6ea5-4625-b83e-96ebb9e70f32', 'Cuentos infantiles',        'cuentos-infantiles',        1),
   ('ccff62cc-0060-438e-ab52-63da9057951c', '1bce9434-6ea5-4625-b83e-96ebb9e70f32', 'Libros educativos',         'libros-educativos',         2),
-  (gen_random_uuid(),                      '1bce9434-6ea5-4625-b83e-96ebb9e70f32', 'Libros para colorear',      'libros-para-colorear',      3);
+  ('53c46d01-a614-4bb3-90c8-22f6639dd881', '1bce9434-6ea5-4625-b83e-96ebb9e70f32', 'Libros para colorear',      'libros-para-colorear',      3);
 
 -- -----------------------------------------------------------------------------
 -- Productos (lo curado que ve la web)

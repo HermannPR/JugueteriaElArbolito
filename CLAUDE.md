@@ -8,7 +8,7 @@ Tienda en línea para Juguetería El Arbolito (Culiacán, desde 1975) con sincro
 
 ## Stack
 - Frontend: Next.js 15 (App Router) + React 19 + TypeScript + Tailwind CSS
-- Backend/DB: Supabase (PostgreSQL + Auth + Storage) — proyecto nuevo por crear (el original nigxlspxlurdxvwnlffu ya no existe)
+- Backend/DB: Supabase (PostgreSQL + Auth + Storage) — project_id nigxlspxlurdxvwnlffu (reconstruido el 2026-09-25 con supabase/migrations)
 - Despliegue: Vercel
 - Pagos: Mercado Pago (Checkout Pro)
 - Facturación: la hace la tienda manualmente en físico (la web NO factura)
@@ -43,7 +43,7 @@ Tienda en línea para Juguetería El Arbolito (Culiacán, desde 1975) con sincro
 ```
 
 ## Estado actual (2026-09-25)
-- El proyecto Supabase original (`nigxlspxlurdxvwnlffu`) YA NO EXISTE (NXDOMAIN). Hay que crear uno nuevo.
+- Supabase `nigxlspxlurdxvwnlffu` estaba pausado; se reactivó y reconstruyó el 2026-09-25 (migraciones 0001–0005 aplicadas, datos restaurados). Registro en `supabase/legacy/`.
 - Esquema, RLS y funciones reconstruidos en `supabase/migrations/` (probados en Postgres local con el seed completo). Pasos en `supabase/README.md`.
 - Checkout y webhook usan `SUPABASE_SERVICE_ROLE_KEY` (servidor); la anon key solo lee catálogo publicado.
 - Panel con roles (staff/admin/superadmin, ver `web/src/lib/roles.ts`). Toda escritura del panel va por `web/src/app/admin/actions.ts` (valida rol + audit_log); el navegador no escribe directo en Supabase.
