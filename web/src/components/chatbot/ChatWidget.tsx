@@ -148,6 +148,7 @@ export default function ChatWidget() {
             />
             <button
               onClick={sendMessage}
+              aria-label="Enviar mensaje"
               disabled={loading || !input.trim()}
               className="w-9 h-9 rounded-xl bg-[#1E40AF] text-white flex items-center justify-center hover:bg-[#1e3a8a] disabled:opacity-50 transition-colors shrink-0"
             >

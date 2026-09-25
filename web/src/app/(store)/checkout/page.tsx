@@ -44,7 +44,7 @@ export default function CheckoutPage() {
   if (items.length === 0) {
     return (
       <div className="max-w-lg mx-auto px-4 py-20 text-center">
-        <p className="text-lg font-display font-semibold mb-4">Tu carrito está vacío</p>
+        <h1 className="text-lg font-display font-semibold mb-4">Tu carrito está vacío</h1>
         <Link href="/productos" className="text-primary hover:underline text-sm">Ver catálogo →</Link>
       </div>
     );
@@ -132,7 +132,7 @@ export default function CheckoutPage() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
-      <h1 className="font-display font-bold text-2xl mb-6">Checkout</h1>
+      <h1 className="font-display font-bold text-2xl mb-6">Finalizar compra</h1>
 
       {/* Step indicator */}
       <div className="flex items-center gap-2 mb-8 overflow-x-auto pb-2">

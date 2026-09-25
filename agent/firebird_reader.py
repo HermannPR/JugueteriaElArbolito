@@ -1,103 +1,95 @@
-"""Lector de inventario desde el archivo Firebird de Eleventa (PDVDATA.FDB).
+"""Lectura del catálogo de Eleventa (Firebird 2.5, PDVDATA.FDB).
 
-IMPORTANTE: Solo lectura. NUNCA escribir en el .FDB con Eleventa abierto.
+SOLO LECTURA: transacción read-only a través del servidor Firebird que ya usa
+Eleventa. Nunca se escribe en la base ni se copia el archivo con Eleventa abierto.
+
+Esquema verificado contra una copia real de la base de la tienda:
+  PRODUCTOS.CODIGO        clave (código de barras o clave interna)
+  PRODUCTOS.DESCRIPCION   nombre
+  PRODUCTOS.PFINAL        precio al público CON IVA  (PVENTA es sin IVA)
+  PRODUCTOS.PCOSTO        costo
+  PRODUCTOS.DINVENTARIO   existencia; solo es real si USA_INVENTARIO = 't'
+  PRODUCTOS.ELIMINADO_EN  borrado lógico (los borrados se ignoran)
+  DEPARTAMENTOS.NOMBRE    departamento (vía PRODUCTOS.DEPT)
 """
+from __future__ import annotations
+
 import logging
-from dataclasses import dataclass
-from pathlib import Path
+from dataclasses import asdict, dataclass
 
 logger = logging.getLogger(__name__)
 
-# Query para extraer productos y existencias de Eleventa.
-# Ajustar nombres de tabla/columna si difieren en la versión instalada.
-QUERY_PRODUCTS = """
-SELECT
-    p.CLAVE        AS clave,
-    p.DESCRIPCION  AS nombre,
-    p.PRECIO1      AS precio,
-    COALESCE(e.EXISTENCIA, 0) AS existencia
+QUERY = """
+SELECT p.CODIGO, p.DESCRIPCION, p.PFINAL, p.PCOSTO, p.DINVENTARIO, p.USA_INVENTARIO, d.NOMBRE
 FROM PRODUCTOS p
-LEFT JOIN EXISTENCIAS e ON e.IDPRODUCTO = p.ID
-WHERE p.ACTIVO = 1
-ORDER BY p.CLAVE
-"""
-
-# Query alternativa si la tabla se llama diferente en algunas versiones de Eleventa
-QUERY_PRODUCTS_ALT = """
-SELECT
-    p.CLAVE        AS clave,
-    p.DESCRIPCION  AS nombre,
-    p.PRECIO1      AS precio,
-    COALESCE(e.EXISTENCIA, 0) AS existencia
-FROM PRODUCTO p
-LEFT JOIN EXISTENCIA e ON e.PRODUCTO_ID = p.ID
-WHERE p.ACTIVO = 1
-ORDER BY p.CLAVE
+LEFT JOIN DEPARTAMENTOS d ON d.ID = p.DEPT
+WHERE p.ELIMINADO_EN IS NULL
 """
 
 
 @dataclass
 class EleventaProduct:
     clave: str
-    nombre: str
-    precio: float
-    existencia: float
+    descripcion: str
+    precio: float | None
+    costo: float | None
+    existencia: float | None  # None = Eleventa no lleva inventario de este producto
+    departamento: str | None
+
+    def to_json(self) -> dict:
+        return asdict(self)
 
 
-def read_inventory(fdb_path: str) -> list[EleventaProduct]:
-    """Lee el inventario completo desde PDVDATA.FDB.
+def row_to_product(row) -> EleventaProduct | None:
+    codigo, descripcion, pfinal, pcosto, dinventario, usa_inventario, departamento = row
+    clave = (codigo or "").strip()
+    if not clave:
+        return None
+    tracks = str(usa_inventario or "").strip().lower() in ("t", "s", "1", "true")
+    return EleventaProduct(
+        clave=clave,
+        descripcion=(descripcion or "").strip(),
+        precio=round(float(pfinal), 2) if pfinal is not None else None,
+        costo=round(float(pcosto), 2) if pcosto is not None else None,
+        existencia=float(dinventario) if tracks and dinventario is not None else None,
+        departamento=(departamento or "").strip() or None,
+    )
 
-    Retorna lista vacía si el archivo está bloqueado o hay error.
-    """
-    path = Path(fdb_path)
-    if not path.exists():
-        logger.error("Archivo Firebird no encontrado: %s", fdb_path)
-        return []
+
+class EleventaReadError(Exception):
+    pass
+
+
+def read_catalog(dsn: str, user: str, password: str, client_library: str | None = None) -> list[EleventaProduct]:
+    """Lee el catálogo vigente. Lanza EleventaReadError si no se pudo leer
+    (en ese caso NO se debe mandar nada a la nube)."""
+    try:
+        import fdb  # type: ignore
+    except ImportError as e:
+        raise EleventaReadError("Falta la librería 'fdb'. Ejecuta: pip install -r requirements.txt") from e
 
     try:
-        import firebird.driver as fdb  # type: ignore
-    except ImportError:
-        logger.error("firebird-driver no instalado. Ejecuta: pip install firebird-driver")
-        return []
+        if client_library:
+            fdb.load_api(client_library)
+        con = fdb.connect(dsn=dsn, user=user, password=password, charset="WIN1252")
+    except Exception as e:  # noqa: BLE001 — cualquier fallo de conexión se reporta igual
+        raise EleventaReadError(f"No se pudo conectar a Eleventa ({dsn}): {e}") from e
 
     try:
-        con = fdb.connect(
-            database=str(path),
-            user="SYSDBA",
-            password="masterkey",
-            charset="WIN1252",
-        )
-    except Exception as e:
-        logger.warning("No se pudo conectar al archivo Firebird (¿está Eleventa abierto?): %s", e)
-        return []
-
-    try:
-        cur = con.cursor()
-        try:
-            cur.execute(QUERY_PRODUCTS)
-        except Exception:
-            # Intentar query alternativa si la primera falla
-            try:
-                cur.execute(QUERY_PRODUCTS_ALT)
-            except Exception as e2:
-                logger.error("Error al consultar productos en Firebird: %s", e2)
-                return []
-
-        products = []
-        for row in cur.fetchall():
-            try:
-                products.append(EleventaProduct(
-                    clave=str(row[0]).strip(),
-                    nombre=str(row[1]).strip(),
-                    precio=float(row[2] or 0),
-                    existencia=float(row[3] or 0),
-                ))
-            except Exception as e:
-                logger.warning("Fila inválida ignorada: %s", e)
-        logger.info("Leídos %d productos de Eleventa.", len(products))
-        return products
+        tr = con.trans(default_tpb=fdb.ISOLATION_LEVEL_READ_COMMITED_RO)
+        cur = tr.cursor()
+        cur.execute(QUERY)
+        rows = cur.fetchall()
+        tr.commit()
+    except Exception as e:  # noqa: BLE001
+        raise EleventaReadError(f"Error al consultar PRODUCTOS: {e}") from e
     finally:
         try:
             con.close()
-        except Exception:
+        except Exception:  # noqa: BLE001
             pass
+
+    products = [p for p in (row_to_product(r) for r in rows) if p]
+    logger.info("Leídos %d productos vigentes de Eleventa (%d con inventario).",
+                len(products), sum(p.existencia is not None for p in products))
+    return products

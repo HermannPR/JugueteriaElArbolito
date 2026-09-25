@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
@@ -34,6 +35,17 @@ async function getRelated(product: Product): Promise<Product[]> {
     .neq("id", product.id)
     .limit(4);
   return (data as Product[]) ?? [];
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const product = await getProduct((await params).id);
+  if (!product) return { title: "Producto no encontrado", robots: { index: false } };
+  const price = Number(product.price).toLocaleString("es-MX", { style: "currency", currency: "MXN" });
+  return {
+    title: product.name,
+    description: product.description?.slice(0, 155) || `${product.name} por ${price} en Juguetería El Arbolito. Envíos a todo México.`,
+    openGraph: product.image_url ? { images: [product.image_url] } : undefined,
+  };
 }
 
 export default async function ProductoPage({ params }: { params: Promise<{ id: string }> }) {

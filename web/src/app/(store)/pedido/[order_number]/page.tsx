@@ -1,38 +1,49 @@
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import Link from "next/link";
+import type { Metadata } from "next";
 import { CheckCircle, Clock, XCircle, MapPin, Phone, Mail } from "lucide-react";
+
+export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = { title: "Tu pedido", robots: { index: false, follow: false } };
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export default async function OrderPage({
   params,
   searchParams,
 }: {
   params: Promise<{ order_number: string }>;
-  searchParams: Promise<{ status?: string; dev?: string }>;
+  searchParams: Promise<{ t?: string }>;
 }) {
   const { order_number } = await params;
-  const { status: urlStatus } = await searchParams;
+  const { t: token } = await searchParams;
 
-  const supabase = await createClient();
-  const { data: order } = await supabase
-    .from("orders")
-    .select("*")
-    .eq("order_number", order_number)
-    .single();
+  // El pedido solo se muestra con el token secreto que va en la liga de pago.
+  // Sin él cualquiera podría ver nombre, correo y dirección adivinando el número.
+  const order = token && UUID_RE.test(token)
+    ? (await createAdminClient()
+        .from("orders")
+        .select("*")
+        .eq("order_number", order_number)
+        .eq("access_token", token)
+        .maybeSingle()).data
+    : null;
 
   if (!order) {
     return (
       <div className="max-w-lg mx-auto px-4 py-20 text-center">
-        <p className="text-lg font-semibold mb-2">Pedido no encontrado</p>
+        <h1 className="text-lg font-semibold mb-2">Pedido no encontrado</h1>
+        <p className="text-sm text-muted-foreground mb-4">Abre tu pedido desde la liga que te enviamos al pagar.</p>
         <Link href="/" className="text-primary hover:underline text-sm">Volver al inicio</Link>
       </div>
     );
   }
 
-  const effectiveStatus = urlStatus ?? (order.payment_status === "paid" ? "success" : order.payment_status === "failed" ? "failure" : "pending");
-
-  const isSuccess = effectiveStatus === "success" || order.payment_status === "paid";
-  const isPending = effectiveStatus === "pending" && order.payment_status !== "paid" && order.payment_status !== "failed";
-  const isFailure = effectiveStatus === "failure" || order.payment_status === "failed";
+  // El estado sale SOLO de la base (lo actualiza el webhook), nunca de la URL.
+  const isSuccess = order.payment_status === "paid";
+  const isFailure = order.payment_status === "failed";
+  const isPending = !isSuccess && !isFailure;
 
   const items = order.items as Array<{ name: string; price: number; quantity: number }>;
   const shippingAddr = order.shipping_address as { street: string; city: string; state: string; zip: string; references?: string } | null;
@@ -57,9 +68,8 @@ export default async function OrderPage({
             </div>
             <h1 className="font-display font-bold text-2xl text-amber-700">Pago pendiente</h1>
             <p className="text-muted-foreground mt-2">
-              {order.payment_method === "oxxo"
-                ? "Realiza tu pago en cualquier OXXO con el voucher que te llegará por correo."
-                : "Estamos esperando la confirmación de tu pago."}
+              Estamos esperando la confirmación de Mercado Pago. Si pagaste en OXXO o
+              por transferencia puede tardar; esta página se actualiza al recargarla.
             </p>
           </>
         )}

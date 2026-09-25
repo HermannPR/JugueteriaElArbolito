@@ -7,8 +7,8 @@
 Tienda en línea para Juguetería El Arbolito (Culiacán, desde 1975) con sincronización de inventario contra el punto de venta físico Eleventa. Inventario único compartido entre tienda física y web.
 
 ## Stack
-- Frontend: Next.js 14 (App Router) + TypeScript + Tailwind CSS
-- Backend/DB: Supabase (PostgreSQL + Auth + Storage + Edge Functions) — project_id: nigxlspxlurdxvwnlffu
+- Frontend: Next.js 15 (App Router) + React 19 + TypeScript + Tailwind CSS
+- Backend/DB: Supabase (PostgreSQL + Auth + Storage) — project_id nigxlspxlurdxvwnlffu (reconstruido el 2026-09-25 con supabase/migrations)
 - Despliegue: Vercel
 - Pagos: Mercado Pago (Checkout Pro)
 - Facturación: la hace la tienda manualmente en físico (la web NO factura)
@@ -26,7 +26,7 @@ Tienda en línea para Juguetería El Arbolito (Culiacán, desde 1975) con sincro
 - Envíos a todo México, sin envío gratis. También recoger en tienda.
 - El stock real vive en Eleventa. El agente SOLO LEE el archivo Firebird (PDVDATA.FDB); NUNCA escribe en él con Eleventa abierto (lo corrompería).
 - Buffer de seguridad de stock para no sobrevender (config en sync_config).
-- Cola offline persistente (SQLite) + idempotencia en el agente.
+- El agente manda la foto completa del catálogo cada ciclo (idempotente; sin cola offline). Precio = `PFINAL` (con IVA), nunca `PVENTA`.
 - Precio web = precio Eleventa, salvo `price_overridden=true` (el admin lo fijó manual).
 
 ## Datos del negocio
@@ -42,9 +42,13 @@ Tienda en línea para Juguetería El Arbolito (Culiacán, desde 1975) con sincro
 /docs       Documentación (00–17)
 ```
 
-## Estado actual
-- Supabase: estructura aplicada (2 subcategorías nuevas en Deportes + columnas is_approved, approved_at, approved_by, price_overridden, category_id, subcategory_id en products). Tablas eleventa_catalog y products VACÍAS.
-- Pendiente FASE 0: ejecutar `seed_inventario.sql` (2,395 productos).
+## Estado actual (2026-09-25)
+- Supabase `nigxlspxlurdxvwnlffu` estaba pausado; se reactivó y reconstruyó el 2026-09-25 (migraciones 0001–0005 aplicadas, datos restaurados). Registro en `supabase/legacy/`.
+- Esquema, RLS y funciones reconstruidos en `supabase/migrations/` (probados en Postgres local con el seed completo). Pasos en `supabase/README.md`.
+- Checkout y webhook usan `SUPABASE_SERVICE_ROLE_KEY` (servidor); la anon key solo lee catálogo publicado.
+- Panel con roles (staff/admin/superadmin, ver `web/src/lib/roles.ts`). Toda escritura del panel va por `web/src/app/admin/actions.ts` (valida rol + audit_log); el navegador no escribe directo en Supabase.
+- Agente reescrito contra el esquema real de Eleventa (ver `agent/README.md`); la PC de la tienda tiene una FDB más nueva que la copia revisada: correr `--dry-run` primero.
+- Pendiente: cotización de envío, reserva OXXO.
 
 ## Estilo de código
 - Código limpio, tipado (TypeScript estricto). Sin valores hardcodeados de color: usar tokens/variables (paleta azul/blanco tentativa, la dueña decide — ver docs/16).

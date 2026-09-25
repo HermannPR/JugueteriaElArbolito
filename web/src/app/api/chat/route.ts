@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 const STORE_SYSTEM_PROMPT = `Eres el asistente virtual de Juguetería El Arbolito, una juguetería familiar en Culiacán, Sinaloa, con más de 50 años de tradición (desde 1975). Tu nombre es "Arbolito".
 
@@ -56,12 +57,12 @@ async function searchProducts(query: string): Promise<string> {
 
 async function getOrderStatus(orderNumber: string): Promise<string> {
   try {
-    const supabase = await createClient();
-    const { data } = await supabase
+    // orders no es legible con la anon key; solo se exponen estado y total.
+    const { data } = await createAdminClient()
       .from("orders")
-      .select("order_number, payment_status, order_status, created_at, total, customer_name")
+      .select("order_number, payment_status, order_status, total")
       .eq("order_number", orderNumber)
-      .single();
+      .maybeSingle();
 
     if (!data) return "";
     const statusMap: Record<string, string> = {
@@ -91,7 +92,7 @@ async function callGroq(systemPrompt: string, messages: Message[]): Promise<stri
   const groq = new Groq({ apiKey });
 
   const completion = await groq.chat.completions.create({
-    model: "llama-3.1-8b-instant",
+    model: process.env.GROQ_MODEL ?? "llama-3.1-8b-instant",
     messages: [{ role: "system", content: systemPrompt }, ...messages],
     max_tokens: 300,
     temperature: 0.6,
@@ -107,7 +108,7 @@ async function callGemini(systemPrompt: string, messages: Message[]): Promise<st
   const { GoogleGenerativeAI } = await import("@google/generative-ai");
   const genAI = new GoogleGenerativeAI(apiKey);
   const model = genAI.getGenerativeModel({
-    model: "gemini-1.5-flash",
+    model: process.env.GEMINI_MODEL ?? "gemini-2.5-flash",
     systemInstruction: systemPrompt,
   });
 

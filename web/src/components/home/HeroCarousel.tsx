@@ -88,7 +88,7 @@ export default function HeroCarousel({ images, intervalMs = 5000 }: Props) {
             type="button"
             onClick={() => go(-1)}
             aria-label="Anterior"
-            className="absolute z-20 left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/20 hover:bg-white/35 backdrop-blur-sm flex items-center justify-center transition-colors"
+            className="absolute z-20 left-3 bottom-3 sm:bottom-auto sm:top-1/2 sm:-translate-y-1/2 w-10 h-10 rounded-full bg-white/20 hover:bg-white/35 backdrop-blur-sm flex items-center justify-center transition-colors"
           >
             <ChevronLeft className="w-5 h-5" />
           </button>
@@ -96,13 +96,13 @@ export default function HeroCarousel({ images, intervalMs = 5000 }: Props) {
             type="button"
             onClick={() => go(1)}
             aria-label="Siguiente"
-            className="absolute z-20 right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/20 hover:bg-white/35 backdrop-blur-sm flex items-center justify-center transition-colors"
+            className="absolute z-20 right-3 bottom-3 sm:bottom-auto sm:top-1/2 sm:-translate-y-1/2 w-10 h-10 rounded-full bg-white/20 hover:bg-white/35 backdrop-blur-sm flex items-center justify-center transition-colors"
           >
             <ChevronRight className="w-5 h-5" />
           </button>
 
           {/* Counter */}
-          <div className="absolute z-20 bottom-4 right-5 text-xs font-medium bg-black/40 backdrop-blur-sm px-2.5 py-1 rounded-full tabular-nums">
+          <div className="absolute z-20 bottom-5 right-16 sm:bottom-4 sm:right-5 text-xs font-medium bg-black/40 backdrop-blur-sm px-2.5 py-1 rounded-full tabular-nums">
             {index + 1} / {count}
           </div>
         </>

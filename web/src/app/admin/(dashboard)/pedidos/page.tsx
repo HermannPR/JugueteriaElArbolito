@@ -1,5 +1,9 @@
+import { Fragment } from "react";
 import { createClient } from "@/lib/supabase/server";
+import { requirePageRole } from "@/lib/auth";
+import { ORDER_STATUS_LABEL, searchTerm } from "@/lib/catalog-status";
 import OrderStatusSelect from "./OrderStatusSelect";
+import EleventaToggle from "./EleventaToggle";
 
 interface SearchParams {
   estado?: string;
@@ -10,17 +14,10 @@ interface SearchParams {
 
 const PAGE_SIZE = 30;
 
-const STATUS_LABEL: Record<string, string> = {
-  pending: "Pendiente",
-  paid: "Pagado",
-  processing: "En proceso",
-  shipped: "Enviado",
-  delivered: "Entregado",
-  cancelled: "Cancelado",
-};
+const STATUS_LABEL = ORDER_STATUS_LABEL;
 const STATUS_COLOR: Record<string, string> = {
   pending: "bg-yellow-100 text-yellow-800",
-  paid: "bg-blue-100 text-blue-800",
+  requires_attention: "bg-destructive/10 text-destructive",
   processing: "bg-purple-100 text-purple-800",
   shipped: "bg-indigo-100 text-indigo-800",
   delivered: "bg-green-100 text-green-800",
@@ -35,12 +32,11 @@ async function getOrders(params: SearchParams) {
 
   let query = supabase
     .from("orders")
-    .select("id, order_number, customer_name, customer_email, total, order_status, payment_status, factura_solicitada, created_at", { count: "exact" });
+    .select("id, order_number, customer_name, customer_email, total, order_status, payment_status, factura_solicitada, pos_registered_at, created_at", { count: "exact" });
 
   if (params.estado) query = query.eq("order_status", params.estado);
-  if (params.q) {
-    query = query.or(`order_number.ilike.%${params.q}%,customer_name.ilike.%${params.q}%,customer_email.ilike.%${params.q}%`);
-  }
+  const q = searchTerm(params.q);
+  if (q) query = query.or(`order_number.ilike.%${q}%,customer_name.ilike.%${q}%,customer_email.ilike.%${q}%`);
 
   query = query.order("created_at", { ascending: false }).range(from, to);
 
@@ -49,6 +45,7 @@ async function getOrders(params: SearchParams) {
 }
 
 export default async function AdminPedidosPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
+  await requirePageRole("admin");
   const params = await searchParams;
   const { orders, total } = await getOrders(params);
   const page = Number(params.pagina ?? 1);
@@ -57,8 +54,8 @@ export default async function AdminPedidosPage({ searchParams }: { searchParams:
   const ESTADOS = [
     { key: "", label: "Todos" },
     { key: "pending", label: "Pendientes" },
-    { key: "paid", label: "Pagados" },
-    { key: "processing", label: "En proceso" },
+    { key: "requires_attention", label: "Requieren atención" },
+    { key: "processing", label: "En preparación" },
     { key: "shipped", label: "Enviados" },
     { key: "delivered", label: "Entregados" },
     { key: "cancelled", label: "Cancelados" },
@@ -108,7 +105,7 @@ export default async function AdminPedidosPage({ searchParams }: { searchParams:
             <table className="w-full text-sm">
               <thead className="bg-surface border-b border-border">
                 <tr>
-                  {["# Pedido", "Cliente", "Total", "Pago", "Estado", "Factura", "Fecha", "Cambiar estado"].map((h) => (
+                  {["# Pedido", "Cliente", "Total", "Pago", "Estado", "Factura", "Eleventa", "Fecha", "Cambiar estado"].map((h) => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -145,6 +142,13 @@ export default async function AdminPedidosPage({ searchParams }: { searchParams:
                         <span className="text-muted-foreground text-xs">—</span>
                       )}
                     </td>
+                    <td className="px-4 py-3">
+                      {order.payment_status === "paid" ? (
+                        <EleventaToggle orderId={order.id} registered={Boolean(order.pos_registered_at)} />
+                      ) : (
+                        <span className="text-muted-foreground text-xs">—</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-muted-foreground text-xs whitespace-nowrap">
                       {new Date(order.created_at).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" })}
                     </td>
@@ -163,7 +167,7 @@ export default async function AdminPedidosPage({ searchParams }: { searchParams:
             {Array.from({ length: totalPages }, (_, i) => i + 1)
               .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 2)
               .map((p, idx, arr) => (
-                <>
+                <Fragment key={p}>
                   {idx > 0 && arr[idx - 1] !== p - 1 && (
                     <span key={`e-${p}`} className="text-muted-foreground px-1">…</span>
                   )}
@@ -176,7 +180,7 @@ export default async function AdminPedidosPage({ searchParams }: { searchParams:
                   >
                     {p}
                   </a>
-                </>
+                </Fragment>
               ))}
           </div>
         )}

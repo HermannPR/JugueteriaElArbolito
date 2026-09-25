@@ -6,6 +6,7 @@ import { TreePine } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { hasRole, type Role } from "@/lib/roles";
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -28,17 +29,17 @@ export default function AdminLoginPage() {
       return;
     }
 
-    // Verify admin
+    // Solo empleados, administradores y superadmin entran al panel.
     const { data: { user } } = await supabase.auth.getUser();
     const { data: profile } = await supabase
       .from("user_profiles")
-      .select("is_admin")
+      .select("role")
       .eq("user_id", user!.id)
-      .single();
+      .maybeSingle();
 
-    if (!profile?.is_admin) {
+    if (!hasRole(profile?.role as Role | undefined, "staff")) {
       await supabase.auth.signOut();
-      setError("Esta cuenta no tiene acceso al panel.");
+      setError("Esta cuenta no tiene acceso al panel. Pide a la administradora que te dé acceso.");
       setLoading(false);
       return;
     }
