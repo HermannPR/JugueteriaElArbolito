@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createHash } from "crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 const STORE_SYSTEM_PROMPT = `Eres el asistente virtual de Juguetería El Arbolito, una juguetería familiar en Culiacán, Sinaloa, con más de 50 años de tradición (desde 1975). Tu nombre es "Arbolito".
@@ -32,7 +33,13 @@ interface Message {
   content: string;
 }
 
-async function searchProducts(query: string): Promise<string> {
+// Palabras útiles del mensaje (con acentos y ñ); se busca cada una por separado.
+const STOPWORDS = new Set(["tienen", "tienes", "quiero", "busco", "hola", "para", "precio", "cuanto", "cuánto", "tienda", "gracias", "juguete", "juguetes"]);
+function keywords(text: string): string[] {
+  return Array.from(new Set((text.toLowerCase().match(/[\p{L}\d]{4,}/gu) ?? []).filter((w) => !STOPWORDS.has(w)))).slice(0, 3);
+}
+
+async function searchProducts(words: string[]): Promise<string> {
   try {
     const supabase = await createClient();
     const { data } = await supabase
@@ -41,7 +48,7 @@ async function searchProducts(query: string): Promise<string> {
       .eq("is_active", true)
       .eq("is_approved", true)
       .gt("stock", 0)
-      .ilike("name", `%${query}%`)
+      .or(words.map((w) => `name.ilike.%${w.replace(/[,()*%\\]/g, "")}%`).join(","))
       .limit(5);
 
     if (!data?.length) return "";
@@ -123,25 +130,54 @@ async function callGemini(systemPrompt: string, messages: Message[]): Promise<st
   return result.response.text();
 }
 
+const MAX_MESSAGES = 20;
+const MAX_CHARS = 500;
+const RATE_LIMIT = 20;            // mensajes…
+const RATE_WINDOW_SECONDS = 600;  // …por visitante cada 10 minutos
+
+function clientKey(req: NextRequest): string {
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "desconocido";
+  return "chat:" + createHash("sha256").update(ip).digest("hex").slice(0, 32);
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const { messages } = (await req.json()) as { messages: Message[] };
-    if (!messages?.length) return NextResponse.json({ error: "No messages" }, { status: 400 });
+    const body = (await req.json().catch(() => null)) as { messages?: unknown } | null;
+    const raw = Array.isArray(body?.messages) ? body.messages : [];
+    const messages: Message[] = raw
+      .slice(-MAX_MESSAGES)
+      .filter((m): m is Message => !!m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
+      .map((m) => ({ role: m.role, content: m.content.slice(0, MAX_CHARS) }));
+    if (!messages.length || messages[messages.length - 1].role !== "user") {
+      return NextResponse.json({ error: "Mensaje inválido" }, { status: 400 });
+    }
 
-    // Limit to 20 messages total
-    const trimmedMessages = messages.slice(-20);
-    const lastUserMessage = trimmedMessages.findLast((m) => m.role === "user")?.content ?? "";
+    // Límite por visitante, guardado en la base (Vercel reparte las peticiones entre instancias).
+    const { data: allowed, error: rateErr } = await createAdminClient().rpc("chat_rate_hit", {
+      p_key: clientKey(req),
+      p_limit: RATE_LIMIT,
+      p_window_seconds: RATE_WINDOW_SECONDS,
+    });
+    if (rateErr) console.error("chat_rate_hit:", rateErr.message);
+    if (allowed === false) {
+      return NextResponse.json(
+        { reply: "Recibimos muchos mensajes seguidos. Espera unos minutos o escríbenos por WhatsApp.", provider: "limit" },
+        { status: 429 }
+      );
+    }
 
-    // Enrich context: product search + order status
+    const lastUserMessage = messages[messages.length - 1].content;
+
+    // Contexto: estado de pedido y búsqueda de productos
     let context = "";
     const orderMatch = lastUserMessage.match(/ARB-\d{8}-[A-Z0-9]+/i);
     if (orderMatch) {
       context += await getOrderStatus(orderMatch[0].toUpperCase());
     }
 
-    const productKeywords = lastUserMessage.match(/\b\w{4,}\b/g)?.slice(0, 3).join(" ") ?? "";
-    if (productKeywords && lastUserMessage.length < 200) {
-      context += await searchProducts(productKeywords);
+    const words = keywords(lastUserMessage);
+    if (words.length) {
+      context += await searchProducts(words);
     }
 
     const systemPrompt = STORE_SYSTEM_PROMPT + (context ? `\n\nCONTEXTO ACTUAL:${context}` : "");
@@ -150,11 +186,11 @@ export async function POST(req: NextRequest) {
     let provider = "fallback";
 
     try {
-      reply = await callGroq(systemPrompt, trimmedMessages);
+      reply = await callGroq(systemPrompt, messages);
       provider = "groq";
     } catch {
       try {
-        reply = await callGemini(systemPrompt, trimmedMessages);
+        reply = await callGemini(systemPrompt, messages);
         provider = "gemini";
       } catch {
         reply = "Por el momento no puedo responder automáticamente. Por favor contáctanos por WhatsApp o correo y con gusto te atendemos.";
