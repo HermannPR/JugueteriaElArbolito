@@ -1,4 +1,3 @@
-firebird-driver>=1.10.0
+fdb>=2.0.2          # Firebird 2.5 (el que usa Eleventa); firebird-driver solo soporta 3.0+
 httpx>=0.27.0
 python-dotenv>=1.0.0
-pywin32>=306; sys_platform == "win32"

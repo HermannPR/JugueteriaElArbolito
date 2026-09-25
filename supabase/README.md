@@ -13,7 +13,8 @@ En **SQL Editor**, ejecutar en este orden (copiar y pegar cada archivo):
 1. `migrations/20260925000001_schema.sql`: tablas, categorías y subcategorías.
 2. `migrations/20260925000002_rls_and_functions.sql`: seguridad, `apply_stock_movement` y buckets.
 3. `migrations/20260925000003_roles_and_audit.sql`: roles del panel, bloqueo y bitácora.
-4. `seed_inventario.sql`: 2,395 productos. Todos entran con `is_approved = false`.
+4. `migrations/20260925000004_eleventa_sync.sql`: sincronización con Eleventa.
+5. `seed_inventario.sql`: 2,395 productos. Todos entran con `is_approved = false`.
 
 Los UUID de categorías en el esquema son los mismos del proyecto original, así que
 `seed_inventario.sql` carga sin cambios.
@@ -54,4 +55,3 @@ Cuando haya ventas reales, conviene el plan Pro: respaldos diarios y sin pausas.
 
 ## Qué NO está aquí todavía
 - Tablas de cupones (`coupons`); la decisión existe (docs/09), el código aún no.
-- RPC de sincronización masiva para el agente (siguiente fase).

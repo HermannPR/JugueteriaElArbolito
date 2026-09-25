@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requirePageRole } from "@/lib/auth";
 import { ORDER_STATUS_LABEL, searchTerm } from "@/lib/catalog-status";
 import OrderStatusSelect from "./OrderStatusSelect";
+import EleventaToggle from "./EleventaToggle";
 
 interface SearchParams {
   estado?: string;
@@ -31,7 +32,7 @@ async function getOrders(params: SearchParams) {
 
   let query = supabase
     .from("orders")
-    .select("id, order_number, customer_name, customer_email, total, order_status, payment_status, factura_solicitada, created_at", { count: "exact" });
+    .select("id, order_number, customer_name, customer_email, total, order_status, payment_status, factura_solicitada, pos_registered_at, created_at", { count: "exact" });
 
   if (params.estado) query = query.eq("order_status", params.estado);
   const q = searchTerm(params.q);
@@ -104,7 +105,7 @@ export default async function AdminPedidosPage({ searchParams }: { searchParams:
             <table className="w-full text-sm">
               <thead className="bg-surface border-b border-border">
                 <tr>
-                  {["# Pedido", "Cliente", "Total", "Pago", "Estado", "Factura", "Fecha", "Cambiar estado"].map((h) => (
+                  {["# Pedido", "Cliente", "Total", "Pago", "Estado", "Factura", "Eleventa", "Fecha", "Cambiar estado"].map((h) => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -137,6 +138,13 @@ export default async function AdminPedidosPage({ searchParams }: { searchParams:
                     <td className="px-4 py-3 text-center">
                       {order.factura_solicitada ? (
                         <span className="text-xs font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">Sí</span>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {order.payment_status === "paid" ? (
+                        <EleventaToggle orderId={order.id} registered={Boolean(order.pos_registered_at)} />
                       ) : (
                         <span className="text-muted-foreground text-xs">—</span>
                       )}

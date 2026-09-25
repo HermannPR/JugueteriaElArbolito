@@ -26,7 +26,7 @@ Tienda en línea para Juguetería El Arbolito (Culiacán, desde 1975) con sincro
 - Envíos a todo México, sin envío gratis. También recoger en tienda.
 - El stock real vive en Eleventa. El agente SOLO LEE el archivo Firebird (PDVDATA.FDB); NUNCA escribe en él con Eleventa abierto (lo corrompería).
 - Buffer de seguridad de stock para no sobrevender (config en sync_config).
-- Cola offline persistente (SQLite) + idempotencia en el agente.
+- El agente manda la foto completa del catálogo cada ciclo (idempotente; sin cola offline). Precio = `PFINAL` (con IVA), nunca `PVENTA`.
 - Precio web = precio Eleventa, salvo `price_overridden=true` (el admin lo fijó manual).
 
 ## Datos del negocio
@@ -47,7 +47,8 @@ Tienda en línea para Juguetería El Arbolito (Culiacán, desde 1975) con sincro
 - Esquema, RLS y funciones reconstruidos en `supabase/migrations/` (probados en Postgres local con el seed completo). Pasos en `supabase/README.md`.
 - Checkout y webhook usan `SUPABASE_SERVICE_ROLE_KEY` (servidor); la anon key solo lee catálogo publicado.
 - Panel con roles (staff/admin/superadmin, ver `web/src/lib/roles.ts`). Toda escritura del panel va por `web/src/app/admin/actions.ts` (valida rol + audit_log); el navegador no escribe directo en Supabase.
-- Pendiente: agente (queries reales de Eleventa: PRODUCTOS.CODIGO/DESCRIPCION/PVENTA/DINVENTARIO), cotización de envío, reserva OXXO.
+- Agente reescrito contra el esquema real de Eleventa (ver `agent/README.md`); la PC de la tienda tiene una FDB más nueva que la copia revisada: correr `--dry-run` primero.
+- Pendiente: cotización de envío, reserva OXXO.
 
 ## Estilo de código
 - Código limpio, tipado (TypeScript estricto). Sin valores hardcodeados de color: usar tokens/variables (paleta azul/blanco tentativa, la dueña decide — ver docs/16).

@@ -25,6 +25,7 @@ const ACTION_LABEL: Record<string, string> = {
   "product.unblock": "Desbloqueó",
   "product.stock_adjust": "Ajustó stock",
   "product.stock_buffer": "Cambió reserva",
+  "order.pos_registered": "Capturó en Eleventa",
 };
 
 export default async function EditProductPage({
@@ -65,6 +66,11 @@ export default async function EditProductPage({
       .limit(1);
     nextId = data?.[0]?.id ?? null;
   }
+
+  // ¿Eleventa lleva inventario de este producto? Decide si el stock web es automático o manual.
+  const tracked = isAdmin && product.eleventa_sku
+    ? Boolean((await supabase.from("eleventa_catalog").select("usa_inventario").eq("clave", product.eleventa_sku).maybeSingle()).data?.usa_inventario)
+    : false;
 
   const history = isAdmin
     ? (
@@ -111,7 +117,7 @@ export default async function EditProductPage({
         </div>
         <div className="lg:col-span-3 space-y-5">
           <DetailsForm product={product} categories={categories ?? []} subcategories={subcategories ?? []} />
-          {isAdmin && <AdminControls product={product} />}
+          {isAdmin && <AdminControls product={product} tracked={tracked} />}
           {isAdmin && (
             <section className="bg-white rounded-2xl border border-border shadow-sm p-5">
               <h2 className="font-display font-semibold mb-3">Historial</h2>

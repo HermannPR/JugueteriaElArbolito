@@ -59,6 +59,8 @@ export default async function SistemaPage() {
     catalog,
     orders,
     movements,
+    tracked,
+    uncaptured,
   ] = await Promise.all([
     db.from("sync_config").select("*").eq("id", 1).maybeSingle(),
     db.from("sync_log").select("id, synced_at, products_synced, errors, duration_seconds, notes").order("synced_at", { ascending: false }).limit(8),
@@ -68,6 +70,8 @@ export default async function SistemaPage() {
     count("eleventa_catalog"),
     count("orders"),
     count("stock_movements"),
+    db.from("eleventa_catalog").select("*", { count: "exact", head: true }).eq("activo", true).eq("usa_inventario", true).then((r) => r.count ?? 0),
+    db.from("orders").select("*", { count: "exact", head: true }).eq("payment_status", "paid").is("pos_registered_at", null).neq("order_status", "cancelled").then((r) => r.count ?? 0),
   ]);
 
   const heartbeatMin = agent?.last_heartbeat ? (Date.now() - new Date(agent.last_heartbeat).getTime()) / 60000 : Infinity;
@@ -99,6 +103,13 @@ export default async function SistemaPage() {
             </Status>
             <Status level={(agent?.last_sync_products ?? 0) > 0 ? "ok" : "warn"}>
               Productos leídos en el último ciclo: {agent?.last_sync_products ?? 0}
+            </Status>
+            <Status level={tracked > 0 ? "ok" : "warn"}>
+              Productos con inventario controlado en Eleventa: {tracked.toLocaleString("es-MX")}
+              {tracked === 0 && " — sin esto el stock web es manual (activar \"Usa inventario\" en Eleventa)"}
+            </Status>
+            <Status level={uncaptured > 0 ? "warn" : "ok"}>
+              Ventas web pagadas sin capturar en Eleventa: {uncaptured}
             </Status>
           </ul>
           {(syncs ?? []).length > 0 && (

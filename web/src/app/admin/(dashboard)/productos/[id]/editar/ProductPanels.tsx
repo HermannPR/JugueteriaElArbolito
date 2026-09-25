@@ -294,7 +294,7 @@ export function PublishPanel({ product }: { product: Product }) {
 
 // --- Solo administración ------------------------------------------------------------
 
-export function AdminControls({ product }: { product: Product }) {
+export function AdminControls({ product, tracked }: { product: Product; tracked: boolean }) {
   const pricing = useAction();
   const stock = useAction();
   const block = useAction();
@@ -369,8 +369,10 @@ export function AdminControls({ product }: { product: Product }) {
           Stock actual: <span className="font-semibold">{currentStock}</span>
           {product.stock_buffer > 0 && <span className="text-muted-foreground"> (se venden en línea {Math.max(0, currentStock - product.stock_buffer)}; {product.stock_buffer} reservados para mostrador)</span>}
         </p>
-        <p className="text-xs text-muted-foreground">
-          Cuando el agente de Eleventa esté conectado, el stock se sincroniza solo y los ajustes manuales se reemplazan en el siguiente ciclo.
+        <p className={`text-xs rounded-lg px-3 py-2 ${tracked ? "bg-accent/10 text-primary" : "bg-muted text-muted-foreground"}`}>
+          {tracked
+            ? "Eleventa lleva el inventario de este producto: el stock web se sincroniza solo (existencia en Eleventa menos ventas web aún no capturadas). Un ajuste manual se reemplaza en el siguiente ciclo; corrige la existencia en Eleventa."
+            : "Eleventa no lleva inventario de este producto (\"Usa inventario\" apagado), así que el stock web es manual: ajústalo aquí."}
         </p>
         <div className="grid sm:grid-cols-[6rem_1fr_auto] gap-2 items-end">
           <div className="space-y-1">

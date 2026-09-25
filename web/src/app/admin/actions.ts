@@ -289,6 +289,23 @@ export async function updateOrderStatus(orderId: string, status: string): Promis
   });
 }
 
+export async function setOrderRegisteredInEleventa(orderId: string, registered: boolean): Promise<ActionResult> {
+  return run(async () => {
+    const actor = await requireActionRole("admin");
+    assertId(orderId);
+    const { data: order } = await createAdminClient().from("orders").select("payment_status").eq("id", orderId).maybeSingle();
+    if (!order) throw new InputError("El pedido no existe.");
+    if (order.payment_status !== "paid") throw new InputError("Solo los pedidos pagados se capturan en Eleventa.");
+    const { error } = await createAdminClient()
+      .from("orders")
+      .update(registered ? { pos_registered_at: new Date().toISOString(), pos_registered_by: actor.id } : { pos_registered_at: null, pos_registered_by: null })
+      .eq("id", orderId);
+    if (error) throw error;
+    await audit(actor, registered ? "order.pos_registered" : "order.pos_unregistered", "order", orderId);
+    revalidatePath("/admin/pedidos");
+  });
+}
+
 // --- Usuarios del panel ---------------------------------------------------------------------------
 // Administración da de alta empleados; solo superadmin asigna administrador/superadmin.
 

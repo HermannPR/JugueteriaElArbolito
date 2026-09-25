@@ -1,210 +1,153 @@
 """
-Agente de sincronización Eleventa ↔ Supabase.
-Lee PDVDATA.FDB (solo lectura) y empuja stock/precios a la nube.
+Agente de sincronización Eleventa → Supabase (Juguetería El Arbolito).
+
+Cada ciclo lee el catálogo vigente de Eleventa (solo lectura) y manda la foto
+completa a Supabase, que calcula altas, bajas, precios y stock en una sola
+transacción (función sync_eleventa_snapshot). Si no hay internet o Eleventa no
+responde, simplemente se intenta en el siguiente ciclo: la última foto manda.
 
 Uso:
-    python agent.py              # corre en primer plano (Ctrl+C para salir)
-    python agent.py --once       # una sola sincronización y sale (útil para cron/tarea)
-    python agent.py --install    # instala como servicio Windows (requiere NSSM)
+    python agent.py --dry-run   # solo lee Eleventa y muestra un resumen (no manda nada)
+    python agent.py --once      # un ciclo real y sale
+    python agent.py             # ciclo continuo (lo que corre el servicio)
+    python agent.py --install   # instala el servicio de Windows (requiere NSSM)
 """
+from __future__ import annotations
+
 import argparse
 import logging
 import os
 import sys
 import time
-from datetime import datetime, timezone
+from collections import Counter
+from logging.handlers import RotatingFileHandler
 
 from dotenv import load_dotenv
 
-from firebird_reader import read_inventory
-from queue_db import QueueDB
+from firebird_reader import EleventaReadError, read_catalog
 from supabase_client import SupabaseClient
 
-load_dotenv()
+AGENT_VERSION = "2.0.0"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+load_dotenv(os.path.join(BASE_DIR, ".env"))
 
-# ── Configuración ──────────────────────────────────────────────────────────────
-FDB_PATH = os.getenv("FDB_PATH", r"C:\Archivos de Programa\AbarrotesPDV\db\PDVDATA.FDB")
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY", "")
-SYNC_INTERVAL = int(os.getenv("SYNC_INTERVAL_SECONDS", "300"))
-STOCK_BUFFER_MIN = int(os.getenv("STOCK_BUFFER_MIN", "1"))
-STOCK_BUFFER_PERCENT = float(os.getenv("STOCK_BUFFER_PERCENT", "0"))
-QUEUE_DB_PATH = os.getenv("QUEUE_DB_PATH", "agent_queue.db")
-LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+# Por el servidor Firebird de Eleventa (no abrir el archivo directo):
+FDB_DSN = os.getenv("FDB_DSN", r"localhost:C:\Program Files (x86)\AbarrotesPDV\db\PDVDATA.FDB")
+FDB_USER = os.getenv("FDB_USER", "SYSDBA")
+FDB_PASSWORD = os.getenv("FDB_PASSWORD", "masterkey")
+FB_CLIENT_LIBRARY = os.getenv("FB_CLIENT_LIBRARY") or None  # p. ej. C:\...\fbclient.dll si no la encuentra
+SYNC_INTERVAL = max(60, int(os.getenv("SYNC_INTERVAL_SECONDS", "300")))
 
-# ── Logging ────────────────────────────────────────────────────────────────────
 logging.basicConfig(
-    level=getattr(logging, LOG_LEVEL, logging.INFO),
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    level=getattr(logging, os.getenv("LOG_LEVEL", "INFO").upper(), logging.INFO),
+    format="%(asctime)s [%(levelname)s] %(message)s",
     handlers=[
         logging.StreamHandler(sys.stdout),
-        logging.FileHandler("agent.log", encoding="utf-8"),
+        RotatingFileHandler(os.path.join(BASE_DIR, "agent.log"), maxBytes=2_000_000, backupCount=3, encoding="utf-8"),
     ],
 )
 logger = logging.getLogger("arbolito.agent")
 
 
-def calc_buffer(existencia: float) -> int:
-    """Calcula el buffer de seguridad para no sobrevender."""
-    by_percent = int(existencia * STOCK_BUFFER_PERCENT / 100)
-    return max(STOCK_BUFFER_MIN, by_percent)
+def dry_run() -> int:
+    products = read_catalog(FDB_DSN, FDB_USER, FDB_PASSWORD, FB_CLIENT_LIBRARY)
+    tracked = [p for p in products if p.existencia is not None]
+    print(f"Productos vigentes en Eleventa: {len(products)}")
+    print(f"Con inventario controlado:      {len(tracked)}  (el resto: stock web manual)")
+    print(f"Con existencia > 0:             {sum(1 for p in tracked if p.existencia > 0)}")
+    print(f"Sin precio:                     {sum(1 for p in products if not p.precio)}")
+    print("Departamentos principales:")
+    for dept, n in Counter(p.departamento or '(sin departamento)' for p in products).most_common(8):
+        print(f"  {n:5d}  {dept}")
+    print("\nNo se mandó nada a Supabase (modo --dry-run).")
+    return 0
 
 
-def sync_cycle(db: QueueDB, supa: SupabaseClient, last_sync_count: int) -> int:
-    """
-    Un ciclo completo de sincronización.
-    Retorna el número de productos procesados.
-    """
-    start = time.monotonic()
-    errors = 0
-
-    logger.info("Iniciando ciclo de sincronización — leyendo Eleventa...")
-    products = read_inventory(FDB_PATH)
-
+def sync_once(supa: SupabaseClient) -> bool:
+    try:
+        products = read_catalog(FDB_DSN, FDB_USER, FDB_PASSWORD, FB_CLIENT_LIBRARY)
+    except EleventaReadError as e:
+        logger.error("%s", e)
+        supa.report_status("offline")
+        supa.log_error(str(e))
+        return False
     if not products:
-        logger.warning("Sin productos de Eleventa. ¿Está abierto el programa?")
-        return last_sync_count
-
-    # Preparar filas para eleventa_catalog
-    catalog_rows = []
-    for p in products:
-        catalog_rows.append({
-            "clave": p.clave,
-            "nombre": p.nombre,
-            "precio": p.precio,
-            "existencia": p.existencia,
-            "last_synced_at": datetime.now(timezone.utc).isoformat(),
-        })
-
-    # Enviar en lotes de 200
-    BATCH = 200
-    for i in range(0, len(catalog_rows), BATCH):
-        batch = catalog_rows[i:i + BATCH]
-        if not supa.upsert_eleventa_catalog(batch):
-            errors += len(batch)
-            # Encolar para reintento
-            for row in batch:
-                db.enqueue("stock_push", row, idempotency_key=f"catalog:{row['clave']}")
-        else:
-            logger.debug("Lote %d enviado (%d registros).", i // BATCH + 1, len(batch))
-
-    # Actualizar stock en products
-    stock_errors = 0
-    for p in products:
-        buffer = calc_buffer(p.existencia)
-        stock_web = max(0, int(p.existencia) - buffer)
-
-        if not supa.update_product_stock(p.clave, stock_web):
-            stock_errors += 1
-        if not supa.update_product_price(p.clave, p.precio):
-            stock_errors += 1
-
-    if stock_errors:
-        logger.warning("%d errores al actualizar stock/precio en products.", stock_errors)
-        errors += stock_errors
-
-    duration = time.monotonic() - start
-    supa.insert_sync_log(len(products), errors, duration)
-    logger.info(
-        "Ciclo completado: %d productos, %d errores, %.1fs.",
-        len(products), errors, duration,
-    )
-    return len(products)
-
-
-def flush_queue(db: QueueDB, supa: SupabaseClient):
-    """Envía las operaciones pendientes de la cola local."""
-    pending = db.get_pending()
-    if not pending:
-        return
-
-    logger.info("Enviando %d operaciones de la cola local...", len(pending))
-    for row in pending:
-        import json
-        payload = json.loads(row["payload"])
-        op = row["operation_type"]
-        success = False
-
-        if op == "stock_push":
-            success = supa.upsert_eleventa_catalog([payload])
-
-        if success:
-            db.mark_synced(row["id"])
-        else:
-            db.increment_attempt(row["id"])
-            if row["attempts"] >= 4:
-                db.mark_failed(row["id"])
-
-
-def run(once: bool = False):
-    if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
-        logger.error("Faltan SUPABASE_URL o SUPABASE_SERVICE_KEY en .env")
-        sys.exit(1)
-
-    db = QueueDB(QUEUE_DB_PATH)
-    supa = SupabaseClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
-
-    # Al iniciar, reencolar los fallos de sesión anterior
-    db.reset_failed_to_pending()
-
-    logger.info("Agente El Arbolito iniciado. Intervalo: %ds. FDB: %s", SYNC_INTERVAL, FDB_PATH)
-
-    last_sync_count = 0
+        logger.warning("Eleventa devolvió 0 productos; no se sincroniza este ciclo.")
+        return False
 
     try:
+        summary = supa.sync_snapshot([p.to_json() for p in products], AGENT_VERSION)
+    except Exception as e:  # noqa: BLE001 — sin internet, timeout, etc.
+        logger.warning("No se pudo enviar a Supabase (se reintenta el siguiente ciclo): %s", e)
+        return False
+
+    logger.info(
+        "Sincronizado: %s recibidos, %s nuevos, %s cambios de stock, %s de precio, %s bajas%s.",
+        summary.get("received"), summary.get("created"), summary.get("stock_changes"),
+        summary.get("price_changes"), summary.get("deactivated"),
+        " (bajas omitidas: lectura incompleta)" if summary.get("deactivation_skipped") else "",
+    )
+    return True
+
+
+def run(once: bool) -> int:
+    if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
+        logger.error("Faltan SUPABASE_URL o SUPABASE_SERVICE_KEY en .env")
+        return 1
+    supa = SupabaseClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+    logger.info("Agente %s iniciado. Intervalo %ds. Eleventa: %s", AGENT_VERSION, SYNC_INTERVAL, FDB_DSN)
+    try:
         while True:
-            online = supa.is_online()
-
-            if online:
-                flush_queue(db, supa)
-                last_sync_count = sync_cycle(db, supa, last_sync_count)
-                supa.update_heartbeat(db.pending_count(), last_sync_count)
-            else:
-                logger.warning("Sin conexión a internet. Reintentando en %ds...", SYNC_INTERVAL)
-                supa.mark_agent_offline()
-
+            ok = sync_once(supa)
             if once:
-                break
-
+                return 0 if ok else 2
             time.sleep(SYNC_INTERVAL)
-
     except KeyboardInterrupt:
-        logger.info("Agente detenido por el usuario.")
+        logger.info("Agente detenido.")
+        return 0
     finally:
-        supa.mark_agent_offline()
+        supa.report_status("offline")
         supa.close()
 
 
-def install_windows_service():
-    """Instala el agente como servicio de Windows usando NSSM."""
-    import subprocess
+def install_windows_service() -> int:
     import shutil
+    import subprocess
 
     nssm = shutil.which("nssm")
     if not nssm:
         print("NSSM no encontrado. Descárgalo de https://nssm.cc/download y agrégalo al PATH.")
-        sys.exit(1)
-
-    python_exe = sys.executable
+        return 1
+    name = "ArbolitoSyncAgent"
     script = os.path.abspath(__file__)
-    service_name = "ArbolitoSyncAgent"
-
-    subprocess.run([nssm, "install", service_name, python_exe, script], check=True)
-    subprocess.run([nssm, "set", service_name, "AppDirectory", os.path.dirname(script)], check=True)
-    subprocess.run([nssm, "set", service_name, "DisplayName", "El Arbolito — Agente de Sincronización"], check=True)
-    subprocess.run([nssm, "set", service_name, "Description", "Sincroniza inventario Eleventa ↔ Supabase"], check=True)
-    subprocess.run([nssm, "set", service_name, "Start", "SERVICE_AUTO_START"], check=True)
-    subprocess.run([nssm, "start", service_name], check=True)
-    print(f"Servicio '{service_name}' instalado e iniciado.")
+    for args in (
+        ["install", name, sys.executable, script],
+        ["set", name, "AppDirectory", BASE_DIR],
+        ["set", name, "DisplayName", "El Arbolito - Sincronización con Eleventa"],
+        ["set", name, "Start", "SERVICE_AUTO_START"],
+        ["set", name, "AppRestartDelay", "30000"],
+        ["start", name],
+    ):
+        subprocess.run([nssm, *args], check=True)
+    print(f"Servicio '{name}' instalado e iniciado.")
+    return 0
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Agente de sincronización El Arbolito")
-    parser.add_argument("--once", action="store_true", help="Ejecutar un solo ciclo y salir")
-    parser.add_argument("--install", action="store_true", help="Instalar como servicio Windows (requiere NSSM)")
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--once", action="store_true", help="Un ciclo y salir")
+    group.add_argument("--dry-run", action="store_true", help="Solo leer Eleventa y mostrar resumen")
+    group.add_argument("--install", action="store_true", help="Instalar servicio de Windows (NSSM)")
     args = parser.parse_args()
-
     if args.install:
-        install_windows_service()
-    else:
-        run(once=args.once)
+        sys.exit(install_windows_service())
+    if args.dry_run:
+        try:
+            sys.exit(dry_run())
+        except EleventaReadError as e:
+            print(f"ERROR: {e}")
+            sys.exit(1)
+    sys.exit(run(once=args.once))
