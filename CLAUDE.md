@@ -7,8 +7,8 @@
 Tienda en línea para Juguetería El Arbolito (Culiacán, desde 1975) con sincronización de inventario contra el punto de venta físico Eleventa. Inventario único compartido entre tienda física y web.
 
 ## Stack
-- Frontend: Next.js 14 (App Router) + TypeScript + Tailwind CSS
-- Backend/DB: Supabase (PostgreSQL + Auth + Storage + Edge Functions) — project_id: nigxlspxlurdxvwnlffu
+- Frontend: Next.js 15 (App Router) + React 19 + TypeScript + Tailwind CSS
+- Backend/DB: Supabase (PostgreSQL + Auth + Storage) — proyecto nuevo por crear (el original nigxlspxlurdxvwnlffu ya no existe)
 - Despliegue: Vercel
 - Pagos: Mercado Pago (Checkout Pro)
 - Facturación: la hace la tienda manualmente en físico (la web NO factura)
@@ -42,9 +42,12 @@ Tienda en línea para Juguetería El Arbolito (Culiacán, desde 1975) con sincro
 /docs       Documentación (00–17)
 ```
 
-## Estado actual
-- Supabase: estructura aplicada (2 subcategorías nuevas en Deportes + columnas is_approved, approved_at, approved_by, price_overridden, category_id, subcategory_id en products). Tablas eleventa_catalog y products VACÍAS.
-- Pendiente FASE 0: ejecutar `seed_inventario.sql` (2,395 productos).
+## Estado actual (2026-09-25)
+- El proyecto Supabase original (`nigxlspxlurdxvwnlffu`) YA NO EXISTE (NXDOMAIN). Hay que crear uno nuevo.
+- Esquema, RLS y funciones reconstruidos en `supabase/migrations/` (probados en Postgres local con el seed completo). Pasos en `supabase/README.md`.
+- Checkout y webhook usan `SUPABASE_SERVICE_ROLE_KEY` (servidor); la anon key solo lee catálogo publicado.
+- Panel con roles (staff/admin/superadmin, ver `web/src/lib/roles.ts`). Toda escritura del panel va por `web/src/app/admin/actions.ts` (valida rol + audit_log); el navegador no escribe directo en Supabase.
+- Pendiente: agente (queries reales de Eleventa: PRODUCTOS.CODIGO/DESCRIPCION/PVENTA/DINVENTARIO), cotización de envío, reserva OXXO.
 
 ## Estilo de código
 - Código limpio, tipado (TypeScript estricto). Sin valores hardcodeados de color: usar tokens/variables (paleta azul/blanco tentativa, la dueña decide — ver docs/16).

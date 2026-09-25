@@ -1,7 +1,6 @@
 // Lifestyle / store photos (kids as models) stored in the Supabase `lifestyle` bucket.
 // Used by the home hero carousel and the /nosotros gallery.
-const BASE =
-  "https://nigxlspxlurdxvwnlffu.supabase.co/storage/v1/object/public/lifestyle";
+const BASE = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/lifestyle`;
 
 const FILES = [
   "dsc07801", "dsc07808", "dsc07815", "dsc07821", "dsc07827",

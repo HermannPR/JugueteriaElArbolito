@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { hasRole, minRoleForPath, type Role } from "@/lib/roles";
 
 export async function middleware(request: NextRequest) {
   const response = NextResponse.next({ request });
@@ -22,35 +23,19 @@ export async function middleware(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser();
 
-  const isAdminRoute = request.nextUrl.pathname.startsWith("/admin");
-  const isLoginPage = request.nextUrl.pathname === "/admin/login";
+  const { pathname } = request.nextUrl;
+  const isLoginPage = pathname === "/admin/login";
 
-  if (isAdminRoute && !isLoginPage) {
-    if (!user) {
-      return NextResponse.redirect(new URL("/admin/login", request.url));
-    }
+  const role: Role | null = user
+    ? (((await supabase.from("user_profiles").select("role").eq("user_id", user.id).maybeSingle()).data?.role as Role) ?? "customer")
+    : null;
 
-    const { data: profile } = await supabase
-      .from("user_profiles")
-      .select("is_admin")
-      .eq("user_id", user.id)
-      .single();
-
-    if (!profile?.is_admin) {
-      return NextResponse.redirect(new URL("/admin/login?error=no_access", request.url));
-    }
-  }
-
-  // Redirect logged-in admins away from login page
-  if (isLoginPage && user) {
-    const { data: profile } = await supabase
-      .from("user_profiles")
-      .select("is_admin")
-      .eq("user_id", user.id)
-      .single();
-    if (profile?.is_admin) {
-      return NextResponse.redirect(new URL("/admin", request.url));
-    }
+  if (!isLoginPage) {
+    if (!user) return NextResponse.redirect(new URL("/admin/login", request.url));
+    if (!hasRole(role, "staff")) return NextResponse.redirect(new URL("/admin/login?error=no_access", request.url));
+    if (!hasRole(role, minRoleForPath(pathname))) return NextResponse.redirect(new URL("/admin?error=sin_permiso", request.url));
+  } else if (hasRole(role, "staff")) {
+    return NextResponse.redirect(new URL("/admin", request.url));
   }
 
   return response;

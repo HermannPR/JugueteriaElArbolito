@@ -1,4 +1,7 @@
+import { Fragment } from "react";
 import { createClient } from "@/lib/supabase/server";
+import { requirePageRole } from "@/lib/auth";
+import { ORDER_STATUS_LABEL, searchTerm } from "@/lib/catalog-status";
 import OrderStatusSelect from "./OrderStatusSelect";
 
 interface SearchParams {
@@ -10,17 +13,10 @@ interface SearchParams {
 
 const PAGE_SIZE = 30;
 
-const STATUS_LABEL: Record<string, string> = {
-  pending: "Pendiente",
-  paid: "Pagado",
-  processing: "En proceso",
-  shipped: "Enviado",
-  delivered: "Entregado",
-  cancelled: "Cancelado",
-};
+const STATUS_LABEL = ORDER_STATUS_LABEL;
 const STATUS_COLOR: Record<string, string> = {
   pending: "bg-yellow-100 text-yellow-800",
-  paid: "bg-blue-100 text-blue-800",
+  requires_attention: "bg-destructive/10 text-destructive",
   processing: "bg-purple-100 text-purple-800",
   shipped: "bg-indigo-100 text-indigo-800",
   delivered: "bg-green-100 text-green-800",
@@ -38,9 +34,8 @@ async function getOrders(params: SearchParams) {
     .select("id, order_number, customer_name, customer_email, total, order_status, payment_status, factura_solicitada, created_at", { count: "exact" });
 
   if (params.estado) query = query.eq("order_status", params.estado);
-  if (params.q) {
-    query = query.or(`order_number.ilike.%${params.q}%,customer_name.ilike.%${params.q}%,customer_email.ilike.%${params.q}%`);
-  }
+  const q = searchTerm(params.q);
+  if (q) query = query.or(`order_number.ilike.%${q}%,customer_name.ilike.%${q}%,customer_email.ilike.%${q}%`);
 
   query = query.order("created_at", { ascending: false }).range(from, to);
 
@@ -49,6 +44,7 @@ async function getOrders(params: SearchParams) {
 }
 
 export default async function AdminPedidosPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
+  await requirePageRole("admin");
   const params = await searchParams;
   const { orders, total } = await getOrders(params);
   const page = Number(params.pagina ?? 1);
@@ -57,8 +53,8 @@ export default async function AdminPedidosPage({ searchParams }: { searchParams:
   const ESTADOS = [
     { key: "", label: "Todos" },
     { key: "pending", label: "Pendientes" },
-    { key: "paid", label: "Pagados" },
-    { key: "processing", label: "En proceso" },
+    { key: "requires_attention", label: "Requieren atención" },
+    { key: "processing", label: "En preparación" },
     { key: "shipped", label: "Enviados" },
     { key: "delivered", label: "Entregados" },
     { key: "cancelled", label: "Cancelados" },
@@ -163,7 +159,7 @@ export default async function AdminPedidosPage({ searchParams }: { searchParams:
             {Array.from({ length: totalPages }, (_, i) => i + 1)
               .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 2)
               .map((p, idx, arr) => (
-                <>
+                <Fragment key={p}>
                   {idx > 0 && arr[idx - 1] !== p - 1 && (
                     <span key={`e-${p}`} className="text-muted-foreground px-1">…</span>
                   )}
@@ -176,7 +172,7 @@ export default async function AdminPedidosPage({ searchParams }: { searchParams:
                   >
                     {p}
                   </a>
-                </>
+                </Fragment>
               ))}
           </div>
         )}

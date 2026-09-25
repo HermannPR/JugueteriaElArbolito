@@ -1,190 +1,159 @@
-import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
-import { CheckCircle, XCircle, Edit, Eye, EyeOff } from "lucide-react";
-import ApproveButton from "./ApproveButton";
+import { ImageOff, Search } from "lucide-react";
+import { createClient } from "@/lib/supabase/server";
+import { requirePageRole } from "@/lib/auth";
+import {
+  PRODUCT_FILTERS,
+  TONE_CLASS,
+  applyProductFilter,
+  isProductFilter,
+  productStage,
+  searchTerm,
+  type ProductFilter,
+} from "@/lib/catalog-status";
+import PublishButton from "./PublishButton";
 
 interface SearchParams {
   estado?: string;
   categoria?: string;
   q?: string;
   pagina?: string;
-  [key: string]: string | undefined;
 }
 
 const PAGE_SIZE = 30;
 
-async function getProducts(params: SearchParams) {
-  const supabase = await createClient();
-  const page = Number(params.pagina ?? 1);
-  const from = (page - 1) * PAGE_SIZE;
-  const to = from + PAGE_SIZE - 1;
+export default async function AdminProductosPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
+  await requirePageRole("staff");
+  const params = await searchParams;
+  const filter: ProductFilter = isProductFilter(params.estado) ? params.estado : "sin_foto";
+  const q = searchTerm(params.q);
+  const page = Math.max(1, Number(params.pagina) || 1);
 
+  const supabase = await createClient();
   let query = supabase
     .from("products")
-    .select("id, name, price, stock, is_approved, is_active, is_featured, image_url, eleventa_sku, categories(name, emoji)", { count: "exact" });
+    .select("id, name, price, stock, image_url, eleventa_sku, category_id, is_active, is_approved, is_blocked, categories(name, emoji)", { count: "exact" });
+  // Con búsqueda se ignora el filtro de estado: el empleado busca un producto concreto.
+  query = q ? query.or(`name.ilike.%${q}%,eleventa_sku.ilike.%${q}%`) : applyProductFilter(query, filter);
+  if (params.categoria) query = query.eq("category_id", params.categoria);
+  const { data: products, count } = await query.order("name").range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
 
-  if (params.estado === "pendiente") query = query.eq("is_approved", false).eq("is_active", true);
-  else if (params.estado === "aprobado") query = query.eq("is_approved", true).eq("is_active", true);
-  else if (params.estado === "inactivo") query = query.eq("is_active", false);
+  const { data: categories } = await supabase.from("categories").select("id, name, emoji").order("display_order");
 
-  if (params.q) query = query.ilike("name", `%${params.q}%`);
-
-  query = query.order("is_approved").order("name").range(from, to);
-
-  const { data, count } = await query;
-  return { products: data ?? [], total: count ?? 0 };
-}
-
-export default async function AdminProductosPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const params = await searchParams;
-  const { products, total } = await getProducts(params);
-  const page = Number(params.pagina ?? 1);
+  const total = count ?? 0;
   const totalPages = Math.ceil(total / PAGE_SIZE);
-
-  const ESTADOS = [
-    { key: "", label: "Todos" },
-    { key: "pendiente", label: "Pendientes" },
-    { key: "aprobado", label: "Aprobados" },
-    { key: "inactivo", label: "Inactivos" },
-  ];
+  const link = (patch: Partial<SearchParams>) => {
+    const next = { ...params, ...patch };
+    const qs = new URLSearchParams(Object.entries(next).filter(([, v]) => v) as [string, string][]);
+    return `?${qs}`;
+  };
+  const filterMeta = PRODUCT_FILTERS.find((f) => f.key === filter)!;
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="font-display font-bold text-2xl">Productos</h1>
-          <p className="text-muted-foreground text-sm mt-1">{total.toLocaleString("es-MX")} producto{total !== 1 ? "s" : ""}</p>
-        </div>
+    <div className="max-w-7xl mx-auto space-y-5">
+      <div>
+        <h1 className="font-display font-bold text-2xl">Productos</h1>
+        <p className="text-muted-foreground text-sm mt-1">
+          {q ? `Resultados para "${q}"` : filterMeta.hint} · {total.toLocaleString("es-MX")} producto{total !== 1 ? "s" : ""}
+        </p>
       </div>
 
-      {/* Filtros */}
-      <div className="bg-white rounded-2xl border border-border p-4 shadow-sm flex flex-wrap gap-3 items-center">
-        <div className="flex gap-1">
-          {ESTADOS.map(({ key, label }) => (
-            <a
+      <div className="bg-white rounded-2xl border border-border p-4 shadow-sm space-y-3">
+        <form method="GET" className="flex gap-2">
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input
+              name="q"
+              defaultValue={params.q}
+              placeholder="Buscar por nombre o código (puedes escanear el código de barras)"
+              className="w-full text-sm border border-border rounded-lg pl-9 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring"
+              autoFocus={Boolean(params.q)}
+            />
+          </div>
+          {params.categoria && <input type="hidden" name="categoria" value={params.categoria} />}
+          <button className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium">Buscar</button>
+        </form>
+
+        <div className="flex flex-wrap gap-1.5">
+          {PRODUCT_FILTERS.map(({ key, label, hint }) => (
+            <Link
               key={key}
-              href={`?${new URLSearchParams({ ...params, estado: key, pagina: "1" })}`}
+              href={link({ estado: key, q: undefined, pagina: undefined })}
+              title={hint}
               className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                (params.estado ?? "") === key
-                  ? "bg-[#1E40AF] text-white"
-                  : "bg-surface text-foreground hover:bg-border"
+                !q && filter === key ? "bg-primary text-primary-foreground" : "bg-surface text-foreground hover:bg-border"
               }`}
             >
               {label}
-            </a>
+            </Link>
           ))}
         </div>
-        <form className="flex-1 min-w-48" method="GET">
-          {params.estado && <input type="hidden" name="estado" value={params.estado} />}
-          <input
-            name="q"
-            defaultValue={params.q}
-            placeholder="Buscar producto..."
-            className="w-full text-sm border border-border rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#3B82F6]"
-          />
-        </form>
+
+        <div className="flex flex-wrap gap-1.5 text-xs">
+          <Link
+            href={link({ categoria: undefined, pagina: undefined })}
+            className={`px-2.5 py-1 rounded-full border ${!params.categoria ? "border-primary text-primary" : "border-border text-muted-foreground"}`}
+          >
+            Todas las categorías
+          </Link>
+          {(categories ?? []).map((c) => (
+            <Link
+              key={c.id}
+              href={link({ categoria: c.id, pagina: undefined })}
+              className={`px-2.5 py-1 rounded-full border ${params.categoria === c.id ? "border-primary text-primary" : "border-border text-muted-foreground"}`}
+            >
+              {c.emoji} {c.name}
+            </Link>
+          ))}
+        </div>
       </div>
 
-      {/* Tabla */}
       <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-surface border-b border-border">
-              <tr>
-                {["SKU", "Nombre", "Categoría", "Precio", "Stock", "Estado", "Acciones"].map((h) => (
-                  <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {products.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="text-center py-12 text-muted-foreground">Sin productos con estos filtros.</td>
-                </tr>
-              )}
-              {products.map((p) => {
-                const cat = (Array.isArray(p.categories) ? p.categories[0] : p.categories) as { name: string; emoji: string } | null;
-                return (
-                  <tr key={p.id} className="hover:bg-surface/50 transition-colors">
-                    <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{p.eleventa_sku ?? "—"}</td>
-                    <td className="px-4 py-3 max-w-xs">
-                      <p className="font-medium line-clamp-1">{p.name}</p>
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
-                      {cat ? `${cat.emoji} ${cat.name}` : "—"}
-                    </td>
-                    <td className="px-4 py-3 font-semibold whitespace-nowrap">
-                      ${p.price.toLocaleString("es-MX", { minimumFractionDigits: 2 })}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`font-medium ${p.stock === 0 ? "text-destructive" : p.stock <= 3 ? "text-amber-600" : "text-green-600"}`}>
-                        {p.stock}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      {!p.is_active ? (
-                        <span className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground">
-                          <EyeOff className="w-3 h-3" /> Inactivo
-                        </span>
-                      ) : p.is_approved ? (
-                        <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700">
-                          <CheckCircle className="w-3 h-3" /> Aprobado
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700">
-                          <XCircle className="w-3 h-3" /> Pendiente
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        {!p.is_approved && p.is_active && (
-                          <ApproveButton productId={p.id} />
-                        )}
-                        <Link
-                          href={`/admin/productos/${p.id}/editar`}
-                          className="inline-flex items-center gap-1 text-xs font-medium text-[#1E40AF] hover:underline"
-                        >
-                          <Edit className="w-3 h-3" /> Editar
-                        </Link>
-                        <Link
-                          href={`/producto/${p.id}`}
-                          target="_blank"
-                          className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground"
-                        >
-                          <Eye className="w-3 h-3" />
-                        </Link>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Paginación */}
-        {totalPages > 1 && (
-          <div className="flex justify-center gap-2 px-4 py-4 border-t border-border">
-            {Array.from({ length: totalPages }, (_, i) => i + 1)
-              .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 2)
-              .map((p, idx, arr) => (
-                <>
-                  {idx > 0 && arr[idx - 1] !== p - 1 && (
-                    <span key={`e-${p}`} className="text-muted-foreground px-1">…</span>
+        {(products ?? []).length === 0 && (
+          <p className="text-center py-12 text-muted-foreground text-sm">
+            {q ? "No hay productos con ese nombre o código." : "No hay productos en este estado. ¡Buen trabajo!"}
+          </p>
+        )}
+        <ul className="divide-y divide-border">
+          {(products ?? []).map((p) => {
+            const cat = (Array.isArray(p.categories) ? p.categories[0] : p.categories) as { name: string; emoji: string } | null;
+            const stage = productStage(p);
+            const editHref = `/admin/productos/${p.id}/editar?volver=${encodeURIComponent(link({}))}`;
+            return (
+              <li key={p.id} className="flex items-center gap-3 px-4 py-3 hover:bg-surface/60 transition-colors">
+                <Link href={editHref} className="shrink-0 w-14 h-14 rounded-lg border border-border bg-surface overflow-hidden flex items-center justify-center">
+                  {p.image_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={p.image_url} alt="" className="w-full h-full object-contain" loading="lazy" />
+                  ) : (
+                    <ImageOff className="w-5 h-5 text-muted-foreground" />
                   )}
-                  <a
-                    key={p}
-                    href={`?${new URLSearchParams({ ...params, pagina: String(p) })}`}
-                    className={`w-8 h-8 flex items-center justify-center rounded-lg text-sm font-medium transition-colors ${
-                      p === page ? "bg-[#1E40AF] text-white" : "bg-surface hover:bg-border"
-                    }`}
-                  >
-                    {p}
-                  </a>
-                </>
-              ))}
-          </div>
+                </Link>
+                <Link href={editHref} className="flex-1 min-w-0">
+                  <p className="font-medium text-sm line-clamp-2">{p.name}</p>
+                  <p className="text-xs text-muted-foreground font-mono truncate">{p.eleventa_sku ?? "sin código"}</p>
+                  <p className="text-xs text-muted-foreground sm:hidden">
+                    ${Number(p.price).toLocaleString("es-MX", { minimumFractionDigits: 2 })} · {p.stock} en stock
+                  </p>
+                </Link>
+                <span className="hidden md:block text-xs text-muted-foreground w-40 truncate">{cat ? `${cat.emoji} ${cat.name}` : "—"}</span>
+                <span className="hidden sm:block text-sm font-semibold w-24 text-right">
+                  ${Number(p.price).toLocaleString("es-MX", { minimumFractionDigits: 2 })}
+                </span>
+                <span className={`hidden sm:block text-sm w-14 text-right ${p.stock <= 0 ? "text-destructive" : ""}`}>{p.stock}</span>
+                <span className={`text-xs font-medium px-2 py-1 rounded-full whitespace-nowrap ${TONE_CLASS[stage.tone]}`}>{stage.label}</span>
+                {stage.label === "Listo para publicar" && <PublishButton productId={p.id} />}
+              </li>
+            );
+          })}
+        </ul>
+
+        {totalPages > 1 && (
+          <nav className="flex justify-center items-center gap-3 px-4 py-4 border-t border-border text-sm">
+            {page > 1 ? <Link href={link({ pagina: String(page - 1) })} className="text-primary hover:underline">← Anterior</Link> : <span />}
+            <span className="text-muted-foreground">Página {page} de {totalPages}</span>
+            {page < totalPages ? <Link href={link({ pagina: String(page + 1) })} className="text-primary hover:underline">Siguiente →</Link> : <span />}
+          </nav>
         )}
       </div>
     </div>

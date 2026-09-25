@@ -23,9 +23,12 @@ async function getProducts(params: SearchParams): Promise<{ products: Product[];
   const from = (page - 1) * PAGE_SIZE;
   const to = from + PAGE_SIZE - 1;
 
+  // Con filtro de categoría el join debe ser !inner; si no, PostgREST solo vacía
+  // el objeto `categories` y devuelve todos los productos igual.
+  const categoriesJoin = params.categoria ? "categories!inner(name,slug,emoji,color)" : "categories(name,slug,emoji,color)";
   let query = supabase
     .from("products")
-    .select("*, categories(name,slug,emoji,color)", { count: "exact" })
+    .select(`*, ${categoriesJoin}`, { count: "exact" })
     .eq("is_active", true)
     .eq("is_approved", true)
     .gt("stock", 0);
