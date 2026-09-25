@@ -35,7 +35,7 @@ export default function Footer() {
 
           {/* Categorías */}
           <div>
-            <h3 className="font-display font-semibold mb-4">Categorías</h3>
+            <h2 className="font-display font-semibold mb-4">Categorías</h2>
             <ul className="space-y-2 text-sm text-white/70">
               {[
                 { href: "/categoria/didacticos", label: "Didácticos" },
@@ -56,7 +56,7 @@ export default function Footer() {
 
           {/* Info */}
           <div>
-            <h3 className="font-display font-semibold mb-4">Información</h3>
+            <h2 className="font-display font-semibold mb-4">Información</h2>
             <ul className="space-y-2 text-sm text-white/70">
               <li><Link href="/nosotros" className="hover:text-white transition-colors">Acerca de nosotros</Link></li>
               <li><Link href="/envios" className="hover:text-white transition-colors">Envíos a todo México</Link></li>
@@ -68,7 +68,7 @@ export default function Footer() {
 
           {/* Ubicación */}
           <div>
-            <h3 className="font-display font-semibold mb-4">Visítanos</h3>
+            <h2 className="font-display font-semibold mb-4">Visítanos</h2>
             <div className="space-y-3 text-sm text-white/70">
               <div className="flex gap-2">
                 <MapPin className="w-4 h-4 shrink-0 mt-0.5" />
