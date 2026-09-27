@@ -104,7 +104,8 @@ const DEFAULT_OPENROUTER_MODELS =
 
 // OpenRouter habla el formato de OpenAI; se llama con fetch para no sumar dependencias.
 async function callOpenRouter(systemPrompt: string, messages: Message[]): Promise<string> {
-  const apiKey = process.env.OPENROUTER_API_KEY;
+  // trim(): una llave pegada con BOM o salto de línea rompe el header Authorization.
+  const apiKey = process.env.OPENROUTER_API_KEY?.trim();
   if (!apiKey || apiKey.startsWith("placeholder")) throw new Error("OpenRouter not configured");
 
   const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
