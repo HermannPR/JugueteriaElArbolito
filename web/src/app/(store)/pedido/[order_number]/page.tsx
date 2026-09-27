@@ -41,9 +41,13 @@ export default async function OrderPage({
   }
 
   // El estado sale SOLO de la base (lo actualiza el webhook), nunca de la URL.
-  const isSuccess = order.payment_status === "paid";
+  // Un pago cuyo monto no cuadró queda en requires_attention: no se confirma
+  // al cliente hasta que la tienda lo revise.
+  const isPaid = order.payment_status === "paid";
+  const isReview = isPaid && order.order_status === "requires_attention";
+  const isSuccess = isPaid && !isReview;
   const isFailure = order.payment_status === "failed";
-  const isPending = !isSuccess && !isFailure;
+  const isPending = !isPaid && !isFailure;
 
   const items = order.items as Array<{ name: string; price: number; quantity: number }>;
   const shippingAddr = order.shipping_address as { street: string; city: string; state: string; zip: string; references?: string } | null;
@@ -70,6 +74,18 @@ export default async function OrderPage({
             <p className="text-muted-foreground mt-2">
               Estamos esperando la confirmación de Mercado Pago. Si pagaste en OXXO o
               por transferencia puede tardar; esta página se actualiza al recargarla.
+            </p>
+          </>
+        )}
+        {isReview && (
+          <>
+            <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Clock className="w-10 h-10 text-amber-600" />
+            </div>
+            <h1 className="font-display font-bold text-2xl text-amber-700">Pago en revisión</h1>
+            <p className="text-muted-foreground mt-2">
+              Recibimos tu pago, pero necesitamos revisarlo antes de preparar el pedido.
+              Te contactaremos pronto; si tienes dudas, escríbenos.
             </p>
           </>
         )}

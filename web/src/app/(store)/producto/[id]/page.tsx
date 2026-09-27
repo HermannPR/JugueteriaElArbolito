@@ -46,6 +46,9 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     alternates: { canonical: `/producto/${product.id}` },
     description: product.description?.slice(0, 155) || `${product.name} por ${price} en Juguetería El Arbolito. Envíos a todo México.`,
     openGraph: product.image_url ? { images: [product.image_url] } : undefined,
+    // Agotado: la ficha sigue abriendo desde ligas viejas, pero sale de los
+    // buscadores igual que sale del catálogo (docs/09: agotados se ocultan).
+    robots: product.stock > 0 ? undefined : { index: false, follow: true },
   };
 }
 

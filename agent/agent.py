@@ -108,7 +108,10 @@ def run(once: bool) -> int:
         logger.info("Agente detenido.")
         return 0
     finally:
-        supa.report_status("offline")
+        # Con --once el proceso termina por diseño (lo relanza el Programador de
+        # tareas): marcarlo offline taparía el "online" que acaba de dejar el sync.
+        if not once:
+            supa.report_status("offline")
         supa.close()
 
 

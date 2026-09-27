@@ -22,7 +22,7 @@ Didácticos, Muñecas y bebés, Deportes, Dinosaurios, Libros, Coleccionables, C
 INSTRUCCIONES:
 - Responde siempre en español de México, con tono amigable, cercano y profesional.
 - Si te preguntan por un producto, usa el contexto de catálogo que se te proporcione.
-- Si te dan un número de pedido (formato ARB-XXXXXXXX-XXXXX), usa el estado que se te proporcione.
+- Si te dan un número de pedido (formato ARB-XXXXXXXX-XXXXX), usa el estado que se te proporcione. Si el contexto dice que falta la liga del pedido, pide que peguen la liga completa que recibieron al pagar (o que la abran directamente).
 - NUNCA inventes precios, stock o disponibilidad. Solo informa lo que el contexto te dé.
 - Si no puedes resolver la duda, sugiere contactar por WhatsApp o correo.
 - Respuestas cortas y concretas. Máximo 3-4 oraciones por respuesta.
@@ -62,16 +62,22 @@ async function searchProducts(words: string[]): Promise<string> {
   }
 }
 
-async function getOrderStatus(orderNumber: string): Promise<string> {
+async function getOrderStatus(orderNumber: string, token: string | null): Promise<string> {
+  // Igual que /pedido/[order_number]: sin el token secreto de la liga no se
+  // revela nada, o cualquiera con el número vería si un pedido ajeno se pagó.
+  if (!token) {
+    return `\nPedido ${orderNumber}: por seguridad no se muestra el estado sin la liga del pedido. Pide al cliente que pegue la liga completa que recibió al pagar.`;
+  }
   try {
     // orders no es legible con la anon key; solo se exponen estado y total.
     const { data } = await createAdminClient()
       .from("orders")
       .select("order_number, payment_status, order_status, total")
       .eq("order_number", orderNumber)
+      .eq("access_token", token)
       .maybeSingle();
 
-    if (!data) return "";
+    if (!data) return `\nPedido ${orderNumber}: no se encontró con esa liga. Pide al cliente que revise la liga que recibió al pagar.`;
     const statusMap: Record<string, string> = {
       pending: "pendiente de pago",
       paid: "pago confirmado",
@@ -84,6 +90,7 @@ async function getOrderStatus(orderNumber: string): Promise<string> {
       shipped: "enviado",
       delivered: "entregado",
       cancelled: "cancelado",
+      requires_attention: "en revisión por la tienda",
     };
     return `\nEstado del pedido ${data.order_number}: Pago: ${statusMap[data.payment_status] ?? data.payment_status} · Pedido: ${orderMap[data.order_status] ?? data.order_status} · Total: $${Number(data.total).toFixed(2)} MXN`;
   } catch {
@@ -172,7 +179,9 @@ export async function POST(req: NextRequest) {
     let context = "";
     const orderMatch = lastUserMessage.match(/ARB-\d{8}-[A-Z0-9]+/i);
     if (orderMatch) {
-      context += await getOrderStatus(orderMatch[0].toUpperCase());
+      // El token viaja en la liga del pedido como ?t=<uuid>.
+      const tokenMatch = lastUserMessage.match(/[?&]t=([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
+      context += await getOrderStatus(orderMatch[0].toUpperCase(), tokenMatch ? tokenMatch[1].toLowerCase() : null);
     }
 
     const words = keywords(lastUserMessage);
