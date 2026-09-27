@@ -20,7 +20,89 @@ sola transacción (`sync_eleventa_snapshot`, migración 0004).
 - No hay cola offline: cada ciclo manda la foto completa, así que si falla internet
   el siguiente ciclo pone todo al día.
 
-## Instalación en la PC de la tienda (Windows)
+## Instalación para la tienda (un clic)
+
+Pensado para que la dueña de la tienda solo dé **doble clic**. Guía impresa para
+ella: [`guia-instalacion-tia.pdf`](./guia-instalacion-tia.pdf) (fuente:
+`guia-instalacion-tia.md`; se regenera con `python generar_guia_pdf.py`).
+Checklist para probarlo en Windows: [`PRUEBA-WINDOWS.md`](./PRUEBA-WINDOWS.md).
+
+**Distribución privada**: el `.exe` se compila en la PC de Hermann y se pasa por
+WhatsApp o USB. Nada de GitHub Actions, Releases ni enlaces públicos. El `.exe`
+**no lleva llaves**: viven solo en `config.env` de la PC de la tienda.
+
+### 1. Compilar (Hermann, en Windows)
+```
+powershell -ExecutionPolicy Bypass -File .\agent\build_exe.ps1
+```
+Crea un venv (`agent\.build-venv`), instala `requirements.txt` + PyInstaller,
+corre las pruebas y genera `agent\dist\ArbolitoSync.exe` (onefile, sin consola,
+pide administrador) con [`ArbolitoSync.spec`](./ArbolitoSync.spec). Imprime el
+SHA256 para comparar en la tienda.
+
+**fbclient.dll (Firebird)**: no se empaqueta. La instala Eleventa (Firebird 2.5) y
+el `.exe` la busca sola (carpeta de AbarrotesPDV, `Firebird\Firebird_2_5\bin`,
+`SysWOW64`/`System32`) y guarda la ruta en `FB_CLIENT_LIBRARY` si es de la **misma
+arquitectura** que el `.exe`. Como Eleventa se instala en `Program Files (x86)`
+(32 bits), `build_exe.ps1` usa **Python de 32 bits** (`py -3-32`) por defecto. Si
+en `instalador.log` sale "fbclient.dll encontrada pero no es de N bits",
+recompilar con la otra arquitectura: `build_exe.ps1 -Python <ruta a python.exe>`.
+Si no se encuentra ninguna, `fdb` usa la del registro de Firebird / PATH.
+
+### 2. Primer arranque (la tía: doble clic)
+`ArbolitoSync.exe` sin argumentos:
+1. Pide permiso de administrador (UAC) y se copia a `%ProgramData%\ArbolitoSync\`.
+2. Busca `config.env` ahí. Si falta → **una** ventana: "Falta la configuración.
+   Avísale a Hermann." (nunca le pide llaves a ella).
+3. Detecta `PDVDATA.FDB` si `config.env` no trae una ruta que exista. Rutas que
+   revisa, en orden (`instalador_logic.FDB_CANDIDATES_TEMPLATES`):
+   - `C:\Program Files (x86)\AbarrotesPDV\db\PDVDATA.FDB` (confirmada en la tienda)
+   - `C:\Program Files\AbarrotesPDV\db\PDVDATA.FDB`, `C:\AbarrotesPDV\db\PDVDATA.FDB`
+   - lo mismo con carpeta `eleventa` (Program Files (x86), Program Files, `C:\`)
+   - `C:\ProgramData\AbarrotesPDV\db\`, `C:\ProgramData\eleventa\db\`,
+     `C:\Users\Public\Documents\eleventa\db\`
+   - barrido de un nivel: `<Program Files (x86)|Program Files|C:\>\*\db\PDVDATA.FDB`
+     y `...\*\PDVDATA.FDB`.
+   Si no la encuentra: "No encontré Eleventa en esta computadora. Avísale a Hermann."
+4. Valida la config, registra la tarea programada **ArbolitoSyncAgent** (mismas
+   reglas que `instalar_tarea.ps1`: SYSTEM, al arrancar la PC, reinicio cada 1 min
+   si truena, relanzamiento cada 10 min; la acción es `ArbolitoSync.exe --agente`),
+   ajusta `powercfg` para no suspender/hibernar enchufada, y muestra
+   **"Listo, ya está funcionando."** en letra grande.
+
+Volver a dar doble clic es seguro (reinstala y reemplaza el `.exe` detenido).
+
+### 3. Configurar (Hermann, en remoto, una vez)
+```
+ArbolitoSync.exe --configurar
+```
+Formulario: `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `NTFY_URL`, `NTFY_TOPIC`,
+`NTFY_TOKEN` y ruta de `PDVDATA.FDB` (prellenada si se detectó). Valida (https,
+que la llave no sea la pública/anon, topic no de ejemplo…). Un campo de llave vacío
+**conserva** la ya guardada. "Guardar e instalar" hace además el paso 2.
+
+**Permisos de `config.env`**: se crea un temporal vacío, se le aplica
+`icacls <archivo> /inheritance:r /grant:r *S-1-5-18:(F) *S-1-5-32-544:(F)` (solo
+SYSTEM y Administradores, por SID para que funcione en Windows en español), se
+escribe y se renombra encima. Los usuarios normales no pueden leer las llaves.
+
+### Otros modos del `.exe`
+| Comando | Qué hace |
+|---|---|
+| `--estado` | Ventana con la tarea programada y las últimas líneas de `agent.log` / `instalador.log` |
+| `--dry-run` | Lee Eleventa y muestra el resumen (también en `dry-run.txt`); no manda nada |
+| `--once` | Un ciclo real (resultado en `agent.log`) |
+| `--agente` | Bucle continuo (lo que ejecuta la tarea) |
+| `--desinstalar` | Quita la tarea; opcionalmente borra `%ProgramData%\ArbolitoSync` |
+
+Archivos en `%ProgramData%\ArbolitoSync\`: `ArbolitoSync.exe`, `config.env`,
+`agent.log` (rotativo), `instalador.log`, `dry-run.txt`.
+
+`agent.py` también lee `config.env` (además de `.env`) de la carpeta indicada por
+`ARBOLITO_DATA_DIR` (la fija el `.exe`); con `python agent.py` sigue usando su
+propia carpeta, así que la instalación manual de abajo no cambia.
+
+## Instalación manual (Python, alternativa)
 
 1. Instalar **Python 3.11+** de python.org con "Add to PATH".
 2. Copiar esta carpeta a `C:\ArbolitoSync\`.
