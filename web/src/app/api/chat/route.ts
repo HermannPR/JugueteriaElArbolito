@@ -98,6 +98,10 @@ async function getOrderStatus(orderNumber: string, token: string | null): Promis
   }
 }
 
+// Modelos gratuitos, en orden de preferencia.
+const DEFAULT_OPENROUTER_MODELS =
+  "nvidia/nemotron-3-super-120b-a12b:free,google/gemma-4-31b-it:free,qwen/qwen3.8-27b:free";
+
 // OpenRouter habla el formato de OpenAI; se llama con fetch para no sumar dependencias.
 async function callOpenRouter(systemPrompt: string, messages: Message[]): Promise<string> {
   const apiKey = process.env.OPENROUTER_API_KEY;
@@ -111,8 +115,13 @@ async function callOpenRouter(systemPrompt: string, messages: Message[]): Promis
       "HTTP-Referer": process.env.NEXT_PUBLIC_SITE_URL ?? "https://jugueteria-el-arbolito.vercel.app",
       "X-Title": "Jugueteria El Arbolito",
     },
+    // OPENROUTER_MODEL admite varios separados por coma: OpenRouter prueba el
+    // siguiente si uno está saturado (los modelos :free suelen dar 429).
     body: JSON.stringify({
-      model: process.env.OPENROUTER_MODEL ?? "google/gemini-2.5-flash",
+      models: (process.env.OPENROUTER_MODEL ?? DEFAULT_OPENROUTER_MODELS)
+        .split(",")
+        .map((m) => m.trim())
+        .filter(Boolean),
       messages: [{ role: "system", content: systemPrompt }, ...messages],
       max_tokens: 300,
       temperature: 0.6,
