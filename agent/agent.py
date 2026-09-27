@@ -42,7 +42,11 @@ from supabase_client import SupabaseClient
 
 AGENT_VERSION = "2.1.0"
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-load_dotenv(os.path.join(BASE_DIR, ".env"))
+# Carpeta de datos (configuración y log). ArbolitoSync.exe la fija en
+# %ProgramData%\ArbolitoSync; con `python agent.py` es la carpeta del script.
+DATA_DIR = os.getenv("ARBOLITO_DATA_DIR") or BASE_DIR
+load_dotenv(os.path.join(DATA_DIR, ".env"))
+load_dotenv(os.path.join(DATA_DIR, "config.env"))  # el que escribe `ArbolitoSync.exe --configurar`
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY", "")
@@ -75,7 +79,7 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(message)s",
     handlers=[
         logging.StreamHandler(sys.stdout),
-        RotatingFileHandler(os.path.join(BASE_DIR, "agent.log"), maxBytes=2_000_000, backupCount=3, encoding="utf-8"),
+        RotatingFileHandler(os.path.join(DATA_DIR, "agent.log"), maxBytes=2_000_000, backupCount=3, encoding="utf-8"),
     ],
 )
 logger = logging.getLogger("arbolito.agent")
