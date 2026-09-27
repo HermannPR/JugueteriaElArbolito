@@ -1,3 +1,12 @@
 .env
 agent.log*
 __pycache__/
+# Empaquetado (build_exe.ps1) y datos locales del instalador: nunca al repo.
+build/
+dist/
+.build-venv/
+*.exe
+config.env
+config.env.tmp
+instalador.log
+dry-run.txt

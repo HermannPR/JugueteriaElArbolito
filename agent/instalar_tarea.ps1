@@ -1,4 +1,4 @@
-# =============================================================================
+﻿# =============================================================================
 # instalar_tarea.ps1  —  Autoarranque + watchdog del agente en Windows
 #
 # Registra el agente como TAREA PROGRAMADA que:
@@ -39,7 +39,7 @@ $Action = New-ScheduledTaskAction -Execute $Python -Argument "`"$AgentPy`"" -Wor
 $TrigBoot = New-ScheduledTaskTrigger -AtStartup
 $TrigMin  = New-ScheduledTaskTrigger -Once -At (Get-Date) `
               -RepetitionInterval (New-TimeSpan -Minutes 10) `
-              -RepetitionDuration ([TimeSpan]::MaxValue)
+              -RepetitionDuration (New-TimeSpan -Days 9999)  # MaxValue falla en varias versiones de Windows 10
 
 # Correr como SYSTEM para que arranque sin sesión iniciada.
 $Principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
