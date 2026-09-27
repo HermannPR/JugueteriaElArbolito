@@ -123,6 +123,9 @@ async function callOpenRouter(systemPrompt: string, messages: Message[]): Promis
         .map((m) => m.trim())
         .filter(Boolean),
       messages: [{ role: "system", content: systemPrompt }, ...messages],
+      // Sin razonamiento: los modelos que "piensan" gastaban los 300 tokens
+      // pensando y devolvían la respuesta vacía.
+      reasoning: { enabled: false },
       max_tokens: 300,
       temperature: 0.6,
     }),
@@ -243,8 +246,9 @@ export async function POST(req: NextRequest) {
         reply = await call(systemPrompt, messages);
         provider = name;
         break;
-      } catch {
-        // siguiente proveedor
+      } catch (err) {
+        // siguiente proveedor; se registra para ver en los logs de Vercel por qué falló
+        console.warn(`chat: ${name} falló:`, err instanceof Error ? err.message : err);
       }
     }
     if (!reply) {
