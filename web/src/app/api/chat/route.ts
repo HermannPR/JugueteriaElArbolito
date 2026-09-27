@@ -98,6 +98,35 @@ async function getOrderStatus(orderNumber: string, token: string | null): Promis
   }
 }
 
+// OpenRouter habla el formato de OpenAI; se llama con fetch para no sumar dependencias.
+async function callOpenRouter(systemPrompt: string, messages: Message[]): Promise<string> {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey || apiKey.startsWith("placeholder")) throw new Error("OpenRouter not configured");
+
+  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      "HTTP-Referer": process.env.NEXT_PUBLIC_SITE_URL ?? "https://jugueteria-el-arbolito.vercel.app",
+      "X-Title": "Jugueteria El Arbolito",
+    },
+    body: JSON.stringify({
+      model: process.env.OPENROUTER_MODEL ?? "google/gemini-2.5-flash",
+      messages: [{ role: "system", content: systemPrompt }, ...messages],
+      max_tokens: 300,
+      temperature: 0.6,
+    }),
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!res.ok) throw new Error(`OpenRouter HTTP ${res.status}`);
+
+  const data = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
+  const reply = data.choices?.[0]?.message?.content?.trim();
+  if (!reply) throw new Error("OpenRouter empty reply");
+  return reply;
+}
+
 async function callGroq(systemPrompt: string, messages: Message[]): Promise<string> {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey || apiKey.startsWith("placeholder")) throw new Error("Groq not configured");
@@ -194,17 +223,24 @@ export async function POST(req: NextRequest) {
     let reply = "";
     let provider = "fallback";
 
-    try {
-      reply = await callGroq(systemPrompt, messages);
-      provider = "groq";
-    } catch {
+    // OpenRouter → Groq → Gemini: el primero configurado que responda.
+    const providers: Array<[string, (s: string, m: Message[]) => Promise<string>]> = [
+      ["openrouter", callOpenRouter],
+      ["groq", callGroq],
+      ["gemini", callGemini],
+    ];
+    for (const [name, call] of providers) {
       try {
-        reply = await callGemini(systemPrompt, messages);
-        provider = "gemini";
+        reply = await call(systemPrompt, messages);
+        provider = name;
+        break;
       } catch {
-        reply = "Por el momento no puedo responder automáticamente. Por favor contáctanos por WhatsApp o correo y con gusto te atendemos.";
-        provider = "fallback";
+        // siguiente proveedor
       }
+    }
+    if (!reply) {
+      reply = "Por el momento no puedo responder automáticamente. Por favor contáctanos por WhatsApp o correo y con gusto te atendemos.";
+      provider = "fallback";
     }
 
     return NextResponse.json({ reply, provider });

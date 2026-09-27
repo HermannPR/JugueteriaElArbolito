@@ -13,7 +13,7 @@ Tienda en línea para Juguetería El Arbolito (Culiacán, desde 1975) con sincro
 - Pagos: Mercado Pago (Checkout Pro)
 - Facturación: la hace la tienda manualmente en físico (la web NO factura)
 - Envíos: agregador multi-paquetería (Envía/Skydropx)
-- Chatbot: fallback Groq → Gemini
+- Chatbot: fallback OpenRouter → Groq → Gemini
 - Agente de sincronización: Python (lee Firebird de Eleventa) en la PC de la tienda
 
 ## Reglas no negociables (resumen — ver docs/09)
