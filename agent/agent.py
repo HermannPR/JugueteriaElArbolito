@@ -6,6 +6,16 @@ completa a Supabase, que calcula altas, bajas, precios y stock en una sola
 transacción (función sync_eleventa_snapshot). Si no hay internet o Eleventa no
 responde, simplemente se intenta en el siguiente ciclo: la última foto manda.
 
+Robustez (para que "no falle" y, cuando falle, "nos notifique"):
+  - Timeout de conexión y de consulta a Firebird (evita cuelgues si Eleventa
+    dejó el archivo bloqueado).
+  - Reintentos con backoff en errores transitorios (lectura Firebird y red a
+    Supabase). El envío es idempotente, así que reintentar no duplica.
+  - El bucle NUNCA muere por una excepción: captura, registra (local + sync_log
+    remoto) y sigue al siguiente ciclo.
+  - Alertas ntfy al entrar en estado "caído" (N fallos seguidos o error crítico)
+    y una vez al "recuperarse". Sin spam por ciclo.
+
 Uso:
     python agent.py --dry-run   # solo lee Eleventa y muestra un resumen (no manda nada)
     python agent.py --once      # un ciclo real y sale
@@ -24,10 +34,13 @@ from logging.handlers import RotatingFileHandler
 
 from dotenv import load_dotenv
 
+from alert_state import AlertEvent, AlertStateMachine
 from firebird_reader import EleventaReadError, read_catalog
+from notifier import Notifier
+from retry import retry_call
 from supabase_client import SupabaseClient
 
-AGENT_VERSION = "2.0.0"
+AGENT_VERSION = "2.1.0"
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 load_dotenv(os.path.join(BASE_DIR, ".env"))
 
@@ -39,6 +52,23 @@ FDB_USER = os.getenv("FDB_USER", "SYSDBA")
 FDB_PASSWORD = os.getenv("FDB_PASSWORD", "masterkey")
 FB_CLIENT_LIBRARY = os.getenv("FB_CLIENT_LIBRARY") or None  # p. ej. C:\...\fbclient.dll si no la encuentra
 SYNC_INTERVAL = max(60, int(os.getenv("SYNC_INTERVAL_SECONDS", "300")))
+
+# Timeouts de Firebird (segundos).
+FDB_CONNECT_TIMEOUT = float(os.getenv("FDB_CONNECT_TIMEOUT_SECONDS", "15"))
+FDB_QUERY_TIMEOUT = float(os.getenv("FDB_QUERY_TIMEOUT_SECONDS", "60"))
+
+# Reintentos con backoff ante errores transitorios.
+RETRY_ATTEMPTS = max(1, int(os.getenv("RETRY_ATTEMPTS", "3")))
+RETRY_BASE_DELAY = float(os.getenv("RETRY_BASE_DELAY_SECONDS", "2"))
+RETRY_MAX_DELAY = float(os.getenv("RETRY_MAX_DELAY_SECONDS", "60"))
+
+# Alertas: cuántos ciclos fallidos seguidos antes de avisar "caído".
+ALERT_FAIL_THRESHOLD = max(1, int(os.getenv("ALERT_FAIL_THRESHOLD", "2")))
+
+# ntfy (canal de Hivemind). Sin secretos en el repo: se llenan en el .env local.
+NTFY_URL = os.getenv("NTFY_URL", "")
+NTFY_TOPIC = os.getenv("NTFY_TOPIC", "")
+NTFY_TOKEN = os.getenv("NTFY_TOKEN", "")
 
 logging.basicConfig(
     level=getattr(logging, os.getenv("LOG_LEVEL", "INFO").upper(), logging.INFO),
@@ -52,7 +82,10 @@ logger = logging.getLogger("arbolito.agent")
 
 
 def dry_run() -> int:
-    products = read_catalog(FDB_DSN, FDB_USER, FDB_PASSWORD, FB_CLIENT_LIBRARY)
+    products = read_catalog(
+        FDB_DSN, FDB_USER, FDB_PASSWORD, FB_CLIENT_LIBRARY,
+        connect_timeout=FDB_CONNECT_TIMEOUT, query_timeout=FDB_QUERY_TIMEOUT,
+    )
     tracked = [p for p in products if p.existencia is not None]
     print(f"Productos vigentes en Eleventa: {len(products)}")
     print(f"Con inventario controlado:      {len(tracked)}  (el resto: stock web manual)")
@@ -65,22 +98,68 @@ def dry_run() -> int:
     return 0
 
 
-def sync_once(supa: SupabaseClient) -> bool:
+def _read_catalog_with_retry():
+    """Lee Eleventa reintentando errores transitorios (bloqueo/timeout puntual)."""
+    return retry_call(
+        lambda: read_catalog(
+            FDB_DSN, FDB_USER, FDB_PASSWORD, FB_CLIENT_LIBRARY,
+            connect_timeout=FDB_CONNECT_TIMEOUT, query_timeout=FDB_QUERY_TIMEOUT,
+        ),
+        attempts=RETRY_ATTEMPTS,
+        base_delay=RETRY_BASE_DELAY,
+        max_delay=RETRY_MAX_DELAY,
+        retry_on=(EleventaReadError,),
+    )
+
+
+def _send_with_retry(supa: SupabaseClient, rows: list[dict]):
+    """Envía la foto a Supabase reintentando errores de red (idempotente)."""
+    return retry_call(
+        lambda: supa.sync_snapshot(rows, AGENT_VERSION),
+        attempts=RETRY_ATTEMPTS,
+        base_delay=RETRY_BASE_DELAY,
+        max_delay=RETRY_MAX_DELAY,
+        retry_on=(Exception,),
+    )
+
+
+def _handle_failure(supa: SupabaseClient, notifier: Notifier, alerts: AlertStateMachine, detail: str) -> None:
+    """Registra un fallo (local + sync_log remoto), marca offline y notifica si toca."""
+    logger.error("Ciclo con fallo: %s", detail)
+    # Registrar SIEMPRE en sync_log remoto (antes esto solo iba al log local).
+    supa.log_error(detail)
+    supa.report_status("offline")
+    if alerts.record_failure() == AlertEvent.CAIDO:
+        notifier.notify(AlertEvent.CAIDO, detail)
+
+
+def _handle_success(supa: SupabaseClient, notifier: Notifier, alerts: AlertStateMachine, detail: str) -> None:
+    """Registra éxito y notifica recuperación si venía de estar caído."""
+    if alerts.record_success() == AlertEvent.RECUPERADO:
+        notifier.notify(AlertEvent.RECUPERADO, detail or "el sync volvió a completar un ciclo")
+
+
+def sync_once(supa: SupabaseClient, notifier: Notifier, alerts: AlertStateMachine) -> bool:
+    """Un ciclo completo. Devuelve True si se sincronizó. Nunca lanza."""
+    # 1) Leer Eleventa (con timeout + reintentos).
     try:
-        products = read_catalog(FDB_DSN, FDB_USER, FDB_PASSWORD, FB_CLIENT_LIBRARY)
+        products = _read_catalog_with_retry()
     except EleventaReadError as e:
-        logger.error("%s", e)
-        supa.report_status("offline")
-        supa.log_error(str(e))
+        _handle_failure(supa, notifier, alerts, f"lectura Firebird: {e}")
         return False
-    if not products:
-        logger.warning("Eleventa devolvió 0 productos; no se sincroniza este ciclo.")
+    except Exception as e:  # noqa: BLE001 — cualquier otra cosa inesperada al leer
+        _handle_failure(supa, notifier, alerts, f"error inesperado al leer Eleventa: {e}")
         return False
 
+    if not products:
+        _handle_failure(supa, notifier, alerts, "Eleventa devolvió 0 productos; no se sincroniza este ciclo.")
+        return False
+
+    # 2) Enviar a Supabase (con reintentos; idempotente).
     try:
-        summary = supa.sync_snapshot([p.to_json() for p in products], AGENT_VERSION)
-    except Exception as e:  # noqa: BLE001 — sin internet, timeout, etc.
-        logger.warning("No se pudo enviar a Supabase (se reintenta el siguiente ciclo): %s", e)
+        summary = _send_with_retry(supa, [p.to_json() for p in products])
+    except Exception as e:  # noqa: BLE001 — sin internet, timeout, 5xx, etc.
+        _handle_failure(supa, notifier, alerts, f"envío a Supabase: {e}")
         return False
 
     logger.info(
@@ -89,6 +168,7 @@ def sync_once(supa: SupabaseClient) -> bool:
         summary.get("price_changes"), summary.get("deactivated"),
         " (bajas omitidas: lectura incompleta)" if summary.get("deactivation_skipped") else "",
     )
+    _handle_success(supa, notifier, alerts, f"{summary.get('received')} productos sincronizados")
     return True
 
 
@@ -97,10 +177,25 @@ def run(once: bool) -> int:
         logger.error("Faltan SUPABASE_URL o SUPABASE_SERVICE_KEY en .env")
         return 1
     supa = SupabaseClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
-    logger.info("Agente %s iniciado. Intervalo %ds. Eleventa: %s", AGENT_VERSION, SYNC_INTERVAL, FDB_DSN)
+    notifier = Notifier(NTFY_URL, NTFY_TOPIC, NTFY_TOKEN)
+    alerts = AlertStateMachine(fail_threshold=ALERT_FAIL_THRESHOLD)
+    logger.info(
+        "Agente %s iniciado. Intervalo %ds. Umbral de alerta %d fallos. Eleventa: %s",
+        AGENT_VERSION, SYNC_INTERVAL, ALERT_FAIL_THRESHOLD, FDB_DSN,
+    )
     try:
         while True:
-            ok = sync_once(supa)
+            # El bucle NUNCA debe morir por una excepción: aquí está el cinturón
+            # de seguridad final por si algo escapó de sync_once.
+            try:
+                ok = sync_once(supa, notifier, alerts)
+            except Exception as e:  # noqa: BLE001 — el ciclo siguiente vuelve a intentar
+                logger.exception("Excepción no controlada en el ciclo; se continúa.")
+                try:
+                    _handle_failure(supa, notifier, alerts, f"excepción no controlada: {e}")
+                except Exception:  # noqa: BLE001 — ni el manejo de error debe tumbar el bucle
+                    logger.exception("Falló también el manejo del error; se continúa.")
+                ok = False
             if once:
                 return 0 if ok else 2
             time.sleep(SYNC_INTERVAL)
@@ -112,6 +207,7 @@ def run(once: bool) -> int:
         # tareas): marcarlo offline taparía el "online" que acaba de dejar el sync.
         if not once:
             supa.report_status("offline")
+        notifier.close()
         supa.close()
 
 

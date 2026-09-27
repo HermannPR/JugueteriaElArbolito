@@ -42,6 +42,52 @@ sola transacción (`sync_eleventa_snapshot`, migración 0004).
    ```
    python agent.py --install
    ```
+   Alternativa sin instalar nada extra (Programador de tareas + watchdog):
+   ```
+   powershell -ExecutionPolicy Bypass -File .\instalar_tarea.ps1
+   ```
+   (correr como Administrador; ver la sección **Autoarranque y watchdog**).
+
+## Robustez (para que no falle)
+- **Timeouts de Firebird**: la conexión y la consulta se cortan si tardan de más
+  (`FDB_CONNECT_TIMEOUT_SECONDS`, `FDB_QUERY_TIMEOUT_SECONDS`). Si Eleventa dejó el
+  archivo bloqueado, el ciclo no se cuelga: aborta y reintenta.
+- **Reintentos con backoff** ante errores transitorios de lectura y de red
+  (`RETRY_ATTEMPTS`, `RETRY_BASE_DELAY_SECONDS`, `RETRY_MAX_DELAY_SECONDS`). El
+  envío es idempotente (la última foto manda), así que reintentar no duplica.
+- **El bucle nunca muere**: cualquier excepción se captura, se registra (local y en
+  `sync_log` remoto) y se sigue con el ciclo siguiente.
+
+## Alertas cuando falla (ntfy)
+Cuando el agente entra en estado **caído** avisa por [ntfy](https://ntfy.sh) al canal
+de Hivemind, y avisa de nuevo **una sola vez** al **recuperarse** (sin spam por ciclo).
+
+- **Disparadores del "caído"**: `ALERT_FAIL_THRESHOLD` ciclos fallidos seguidos
+  (por defecto 2), o error crítico de lectura de Firebird, o no poder subir a
+  Supabase. Cualquiera de esos, sostenido hasta el umbral, dispara la alerta.
+- **Mensaje**: `[sync-arbolito -> hermann] bloqueo: <detalle>` (y
+  `... recuperado: <detalle>` al volver).
+- **Config** (en `.env`): `NTFY_URL`, `NTFY_TOPIC`, `NTFY_TOKEN` (opcional; si el
+  servidor pide auth, va como `Authorization: Bearer <token>`). Si no se configura,
+  las alertas quedan deshabilitadas y solo se registran en el log local.
+
+## Detectar "agente sin reportar" (staleness) desde el panel
+`agent_status` por sí solo no basta: si la PC se apaga o el proceso muere en seco,
+nadie actualiza esa columna y el estado se queda congelado. El panel debe comparar
+`sync_config.last_heartbeat` contra `now()`. Regla sugerida: **stale si lleva más de
+3× el intervalo de sync** (5 min → 15 min) sin heartbeat. Consultas listas en
+[`staleness.sql`](./staleness.sql) (solo lectura; no tocan producción).
+
+## Autoarranque y watchdog (Windows)
+Dos opciones (elegir una):
+1. **NSSM (servicio)** — `python agent.py --install`. Corre el agente como servicio
+   con autoarranque y reinicio (`AppRestartDelay` 30 s).
+2. **Programador de tareas** — `instalar_tarea.ps1` (como Administrador). Registra
+   una tarea que arranca al prender la PC, se reinicia si truena (cada 1 min) y se
+   relanza cada 10 min si no está corriendo. El mismo script ajusta la energía para
+   que la PC **no se suspenda ni hiberne** (necesario para correr 24/7).
+
+> No ejecutar estos instaladores en un contenedor/CI: son para la PC de la tienda.
 
 ## Para que el stock web sea automático
 En Eleventa, en cada producto que se venda en línea, activar **"Usa inventario"**
