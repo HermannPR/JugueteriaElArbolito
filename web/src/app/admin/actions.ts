@@ -4,7 +4,7 @@ import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { PermissionError, requireActionRole, type PanelUser } from "@/lib/auth";
-import { ImageError, downloadImage, removeStoredImage, saveProductImage, toWebp } from "@/lib/product-images";
+import { ImageError, downloadImage, removeStoredImage, resolveImageUrl, saveProductImage, toWebp } from "@/lib/product-images";
 import { ROLE_RANK, type Role } from "@/lib/roles";
 import { applyProductFilter, chunk, isReadyToPublish } from "@/lib/catalog-status";
 
@@ -151,6 +151,83 @@ export async function removeProductImage(productId: string): Promise<ActionResul
     await removeStoredImage(db, product.image_url);
     await audit(actor, "product.image_remove", "product", productId, { was_published: product.is_approved });
     refreshProduct(productId);
+  });
+}
+
+// --- Fotos sugeridas (administración) ---------------------------------------------------
+// Sugerencias de los lotes de búsqueda (tabla photo_suggestions). Aceptar usa el
+// mismo importador que "Importar desde liga"; Descartar solo marca la sugerencia.
+
+async function loadPendingSuggestion(suggestionId: string) {
+  const db = createAdminClient();
+  const { data: suggestion, error } = await db
+    .from("photo_suggestions")
+    .select("id, clave, source_url, nivel, status")
+    .eq("id", suggestionId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!suggestion) throw new InputError("La sugerencia no existe.");
+  if (suggestion.status !== "pending") throw new InputError("Esta sugerencia ya se revisó.");
+  return suggestion;
+}
+
+export async function previewPhotoSuggestion(suggestionId: string): Promise<ActionResult<{ image_url: string }>> {
+  return run(async () => {
+    await requireActionRole("admin");
+    assertId(suggestionId);
+    const suggestion = await loadPendingSuggestion(suggestionId);
+    return { image_url: await resolveImageUrl(suggestion.source_url) };
+  });
+}
+
+export async function acceptPhotoSuggestion(suggestionId: string): Promise<ActionResult> {
+  return run(async () => {
+    const actor = await requireActionRole("admin");
+    assertId(suggestionId);
+    const suggestion = await loadPendingSuggestion(suggestionId);
+    const db = createAdminClient();
+
+    const { data: product, error: productErr } = await db
+      .from("products")
+      .select("id, image_url")
+      .eq("eleventa_sku", suggestion.clave)
+      .maybeSingle();
+    if (productErr) throw productErr;
+    if (!product) throw new InputError("El producto de esta sugerencia ya no existe.");
+    if (product.image_url) throw new InputError("Este producto ya tiene foto. Descarta la sugerencia o cambia la foto desde su ficha.");
+
+    const webp = await toWebp(await downloadImage(suggestion.source_url));
+    await saveProductImage(db, product.id, webp);
+
+    const { error } = await db
+      .from("photo_suggestions")
+      .update({ status: "accepted", decided_by: actor.id, decided_at: new Date().toISOString() })
+      .eq("id", suggestionId)
+      .eq("status", "pending");
+    if (error) throw error;
+    await audit(actor, "product.image_suggestion_accept", "product", product.id, {
+      suggestion_id: suggestionId,
+      nivel: suggestion.nivel,
+      source: suggestion.source_url.slice(0, 500),
+    });
+    refreshProduct(product.id);
+    revalidatePath("/admin/fotos");
+  });
+}
+
+export async function discardPhotoSuggestion(suggestionId: string): Promise<ActionResult> {
+  return run(async () => {
+    const actor = await requireActionRole("admin");
+    assertId(suggestionId);
+    const suggestion = await loadPendingSuggestion(suggestionId);
+    const { error } = await createAdminClient()
+      .from("photo_suggestions")
+      .update({ status: "discarded", decided_by: actor.id, decided_at: new Date().toISOString() })
+      .eq("id", suggestionId)
+      .eq("status", "pending");
+    if (error) throw error;
+    await audit(actor, "photo_suggestion.discard", "photo_suggestion", suggestionId, { clave: suggestion.clave, nivel: suggestion.nivel });
+    revalidatePath("/admin/fotos");
   });
 }
 

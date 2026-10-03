@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, Package, ShoppingBag, LogOut, TreePine, X, Users, Activity } from "lucide-react";
+import { LayoutDashboard, Package, ShoppingBag, LogOut, TreePine, X, Users, Activity, Images } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { ROLE_LABEL, hasRole, type Role } from "@/lib/roles";
 
 const NAV: Array<{ href: string; label: string; icon: typeof Package; min: Role; exact?: boolean }> = [
   { href: "/admin", label: "Inicio", icon: LayoutDashboard, min: "staff", exact: true },
   { href: "/admin/productos", label: "Productos", icon: Package, min: "staff" },
+  { href: "/admin/fotos", label: "Fotos sugeridas", icon: Images, min: "admin" },
   { href: "/admin/pedidos", label: "Pedidos", icon: ShoppingBag, min: "admin" },
   { href: "/admin/usuarios", label: "Usuarios", icon: Users, min: "admin" },
   { href: "/admin/sistema", label: "Sistema", icon: Activity, min: "superadmin" },

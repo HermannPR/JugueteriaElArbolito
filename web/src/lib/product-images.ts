@@ -105,15 +105,27 @@ async function readCapped(res: Response, maxBytes: number, tooBig: string): Prom
 }
 
 /**
- * Descarga la imagen de una URL. Si la URL es la ficha del producto (HTML), toma
- * la foto principal que declara la página (og:image) y descarga esa.
+ * Dirección de la imagen que se importaría desde esta URL, sin descargarla (para
+ * mostrar la vista previa). Si es una página, la foto que declara (og:image).
  */
-export async function downloadImage(raw: string): Promise<Buffer> {
+export async function resolveImageUrl(raw: string): Promise<string> {
   const { res, url } = await fetchPublic(raw, "image/*,text/html;q=0.8");
-  const type = (res.headers.get("content-type") ?? "").toLowerCase();
-  if (type.startsWith("image/")) return readCapped(res, MAX_DOWNLOAD_BYTES, "La imagen pesa más de 10 MB.");
+  if (isImage(res)) {
+    await res.body?.cancel();
+    return url.toString();
+  }
+  return imageFromPage(res, url);
+}
 
+function isImage(res: Response): boolean {
+  return (res.headers.get("content-type") ?? "").toLowerCase().startsWith("image/");
+}
+
+/** La foto principal que declara una página HTML ya descargada. */
+async function imageFromPage(res: Response, url: URL): Promise<string> {
+  const type = (res.headers.get("content-type") ?? "").toLowerCase();
   if (!type.startsWith("text/html") && !type.startsWith("application/xhtml")) {
+    await res.body?.cancel();
     throw new ImageError("Esa URL no es una imagen ni la página de un producto.");
   }
   const html = (await readCapped(res, MAX_PAGE_BYTES, "La página es demasiado grande para leerla.")).toString("utf8");
@@ -121,10 +133,22 @@ export async function downloadImage(raw: string): Promise<Buffer> {
   if (!imageUrl) {
     throw new ImageError("Esa página no indica su foto principal. Abre la imagen y usa \"Copiar dirección de la imagen\".");
   }
+  return imageUrl;
+}
+
+/**
+ * Descarga la imagen de una URL. Si la URL es la ficha del producto (HTML), toma
+ * la foto principal que declara la página (og:image) y descarga esa.
+ */
+export async function downloadImage(raw: string): Promise<Buffer> {
+  const { res, url } = await fetchPublic(raw, "image/*,text/html;q=0.8");
+  if (isImage(res)) return readCapped(res, MAX_DOWNLOAD_BYTES, "La imagen pesa más de 10 MB.");
+  const imageUrl = await imageFromPage(res, url);
 
   // Un solo salto: la foto declarada debe ser una imagen, no otra página.
   const img = await fetchPublic(imageUrl, "image/*");
-  if (!(img.res.headers.get("content-type") ?? "").toLowerCase().startsWith("image/")) {
+  if (!isImage(img.res)) {
+    await img.res.body?.cancel();
     throw new ImageError("La foto que indica la página no se pudo abrir como imagen. Copia la dirección de la imagen a mano.");
   }
   return readCapped(img.res, MAX_DOWNLOAD_BYTES, "La imagen pesa más de 10 MB.");

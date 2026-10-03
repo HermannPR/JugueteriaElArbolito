@@ -19,6 +19,7 @@ export function hasRole(role: Role | null | undefined, min: Role): boolean {
 export const ROUTE_MIN_ROLE: Array<[prefix: string, role: Role]> = [
   ["/admin/sistema", "superadmin"],
   ["/admin/pedidos", "admin"],
+  ["/admin/fotos", "admin"],
   ["/admin", "staff"],
 ];
 
