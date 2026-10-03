@@ -27,12 +27,11 @@ Resultado en `t42-lote-001.csv` (liga = ficha del producto, no URL directa de la
 | muy_alta | 7 | Todos Mi Alegría, ficha en la tienda del fabricante |
 | alta | 10 | Libros Dreams Art, Fisher-Price, Crayola, Mega Bloks: mismo producto, falta confirmar color o edición |
 | media | 5 | La marca tiene varios modelos parecidos (Barbie clínica, Mandalorian, Apache) |
-| manual | 19 | 10 con código 489/697 de importadores genéricos, más genéricos y descontinuados |
-| pendiente | 9 | No se buscaron para medir el costo; quedan para el siguiente lote |
+| manual | 28 | Importadores genéricos (489, 697 y similares), ropa con licencia, genéricos, descontinuados y sin coincidencia |
 
 Aprendizajes:
 - Buscar por código de barras **no sirve** (el buscador es de EE. UU. y devuelve basura). Funciona buscar por nombre y marca, limitado a tiendas de México y del fabricante.
 - Los códigos 489186… y 697… (importadores con licencia Disney/Marvel) casi nunca tienen ficha oficial: conviene mandarlos directo a manual sin buscar, igual que los genéricos.
 - Mi Alegría tiene catálogo completo en línea: es la marca con más rendimiento.
 
-Costo: 25 búsquedas web (5 de prueba por código, inútiles) para 41 productos clasificados, 22 de ellos con liga. Proyección para los ~1,569 de la cola: muchos más que un turno; sugerencia: excluir 489/697 y buscar solo marcas fuertes.
+Costo: 30 búsquedas web (5 de prueba por código, inútiles) para los 50 productos; 22 con liga. Las últimas 5 (batas, Minnie, cocina, Frozen, libro) no dieron ninguna foto: confirma que fuera de marcas fuertes buscar casi no rinde. Proyección para los ~1,569 de la cola: muchos más que un turno; sugerencia: excluir 489/697 y buscar solo marcas fuertes.
