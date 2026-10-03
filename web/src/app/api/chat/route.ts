@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createHash } from "crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { rateLimitBlock } from "@/lib/chat-rate";
 
 const STORE_SYSTEM_PROMPT = `Eres el asistente virtual de Juguetería El Arbolito, una juguetería familiar en Culiacán, Sinaloa, con más de 50 años de tradición (desde 1975). Tu nombre es "Arbolito".
 
@@ -208,12 +209,8 @@ export async function POST(req: NextRequest) {
       p_window_seconds: RATE_WINDOW_SECONDS,
     });
     if (rateErr) console.error("chat_rate_hit:", rateErr.message);
-    if (allowed === false) {
-      return NextResponse.json(
-        { reply: "Recibimos muchos mensajes seguidos. Espera unos minutos o escríbenos por WhatsApp.", provider: "limit" },
-        { status: 429 }
-      );
-    }
+    const blocked = rateLimitBlock(allowed, rateErr);
+    if (blocked) return NextResponse.json(blocked.body, { status: blocked.status });
 
     const lastUserMessage = messages[messages.length - 1].content;
 

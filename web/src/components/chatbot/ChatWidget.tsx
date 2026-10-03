@@ -55,7 +55,8 @@ export default function ChatWidget() {
         content: data.reply ?? "No pude procesar tu pregunta. Por favor contáctanos directamente.",
       };
       setMessages((prev) => [...prev, reply]);
-      if (data.provider === "fallback") setShowWhatsApp(true);
+      // Sin respuesta del bot (límite, limitador caído o error): ofrecer WhatsApp.
+      if (!res.ok || data.provider === "fallback") setShowWhatsApp(true);
     } catch {
       setMessages((prev) => [
         ...prev,
