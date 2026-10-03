@@ -1,5 +1,5 @@
 // Prueba del límite del chat (falla cerrado). Correr desde web/:
-//   node --test --experimental-strip-types tests/
+//   npm test   (node --test --experimental-strip-types tests/*.test.mjs)
 // (Node 22.6+; en Node 23.6+ la bandera ya no hace falta).
 import { test } from "node:test";
 import assert from "node:assert/strict";
