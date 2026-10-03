@@ -11,7 +11,9 @@ import {
   searchTerm,
   type ProductFilter,
 } from "@/lib/catalog-status";
+import { hasRole } from "@/lib/roles";
 import PublishButton from "./PublishButton";
+import PublishAllButton from "./PublishAllButton";
 
 interface SearchParams {
   estado?: string;
@@ -23,7 +25,7 @@ interface SearchParams {
 const PAGE_SIZE = 30;
 
 export default async function AdminProductosPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  await requirePageRole("staff");
+  const user = await requirePageRole("staff");
   const params = await searchParams;
   const filter: ProductFilter = isProductFilter(params.estado) ? params.estado : "sin_foto";
   const q = searchTerm(params.q);
@@ -48,6 +50,8 @@ export default async function AdminProductosPage({ searchParams }: { searchParam
     return `?${qs}`;
   };
   const filterMeta = PRODUCT_FILTERS.find((f) => f.key === filter)!;
+  // En la pestaña Listos, sin búsqueda, el conteo es exactamente lo que publicaría el botón.
+  const showPublishAll = !q && filter === "listos" && hasRole(user.role, "admin");
 
   return (
     <div className="max-w-7xl mx-auto space-y-5">
@@ -56,6 +60,11 @@ export default async function AdminProductosPage({ searchParams }: { searchParam
         <p className="text-muted-foreground text-sm mt-1">
           {q ? `Resultados para "${q}"` : filterMeta.hint} · {total.toLocaleString("es-MX")} producto{total !== 1 ? "s" : ""}
         </p>
+        {showPublishAll && total > 0 && (
+          <div className="mt-3">
+            <PublishAllButton count={total} categoryId={params.categoria ?? null} />
+          </div>
+        )}
       </div>
 
       <div className="bg-white rounded-2xl border border-border p-4 shadow-sm space-y-3">
@@ -143,6 +152,7 @@ export default async function AdminProductosPage({ searchParams }: { searchParam
                 <span className={`hidden sm:block text-sm w-14 text-right ${p.stock <= 0 ? "text-destructive" : ""}`}>{p.stock}</span>
                 <span className={`text-xs font-medium px-2 py-1 rounded-full whitespace-nowrap ${TONE_CLASS[stage.tone]}`}>{stage.label}</span>
                 {stage.label === "Listo para publicar" && <PublishButton productId={p.id} />}
+                {stage.label === "Publicado" && <PublishButton productId={p.id} mode="unpublish" />}
               </li>
             );
           })}
