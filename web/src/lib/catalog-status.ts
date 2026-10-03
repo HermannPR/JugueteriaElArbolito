@@ -63,6 +63,18 @@ export interface PanelProductState {
   price: number;
 }
 
+/** Mismo criterio que la pestaña "Listos para publicar". */
+export function isReadyToPublish(p: PanelProductState): boolean {
+  return p.is_active && !p.is_approved && !p.is_blocked && Boolean(p.image_url) && Boolean(p.category_id) && Number(p.price) > 0;
+}
+
+/** Parte una lista en grupos (los filtros in() de PostgREST viajan en la URL). */
+export function chunk<T>(items: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}
+
 export function productStage(p: PanelProductState): { label: string; tone: "ok" | "warn" | "muted" | "danger" | "info" } {
   if (p.is_blocked) return { label: "Bloqueado", tone: "danger" };
   if (!p.is_active) return { label: "Ya no en Eleventa", tone: "muted" };

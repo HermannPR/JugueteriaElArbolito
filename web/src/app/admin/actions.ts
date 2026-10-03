@@ -6,6 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { PermissionError, requireActionRole, type PanelUser } from "@/lib/auth";
 import { ImageError, downloadImage, removeStoredImage, saveProductImage, toWebp } from "@/lib/product-images";
 import { ROLE_RANK, type Role } from "@/lib/roles";
+import { applyProductFilter, chunk, isReadyToPublish } from "@/lib/catalog-status";
 
 // Toda escritura del panel pasa por aquí: el rol se valida en el servidor y el
 // cambio queda en audit_log. El navegador ya no escribe directo en Supabase.
@@ -192,6 +193,56 @@ export async function unpublishProduct(productId: string): Promise<ActionResult>
     if (error) throw error;
     await audit(actor, "product.unpublish", "product", productId);
     refreshProduct(productId);
+  });
+}
+
+const BULK_PAGE = 1000; // máximo de filas que PostgREST devuelve por consulta
+const BULK_CHUNK = 200;
+
+/**
+ * Publica de una vez todos los "Listos para publicar" (opcionalmente de una
+ * categoría). Solo administración: es un cambio grande en la tienda. Los ids
+ * quedan en audit_log para poder revertir.
+ */
+export async function publishAllReady(categoryId: string | null): Promise<ActionResult<{ published: number }>> {
+  return run(async () => {
+    const actor = await requireActionRole("admin");
+    if (categoryId) assertId(categoryId);
+    const db = createAdminClient();
+
+    const ids: string[] = [];
+    for (let from = 0; ; from += BULK_PAGE) {
+      let query = applyProductFilter(
+        db.from("products").select("id, price, image_url, category_id, is_active, is_approved, is_blocked"),
+        "listos"
+      );
+      if (categoryId) query = query.eq("category_id", categoryId);
+      const { data, error } = await query.order("id").range(from, from + BULK_PAGE - 1);
+      if (error) throw error;
+      for (const p of data ?? []) if (isReadyToPublish(p)) ids.push(p.id);
+      if (!data || data.length < BULK_PAGE) break;
+    }
+    if (!ids.length) throw new InputError("No hay productos listos para publicar.");
+
+    const now = new Date().toISOString();
+    let published = 0;
+    for (const part of chunk(ids, BULK_CHUNK)) {
+      // Se repiten las condiciones por si algo cambió entre la consulta y el update.
+      const { data, error } = await db
+        .from("products")
+        .update({ is_approved: true, approved_at: now, approved_by: actor.id })
+        .in("id", part)
+        .eq("is_approved", false)
+        .eq("is_blocked", false)
+        .eq("is_active", true)
+        .select("id");
+      if (error) throw error;
+      published += data?.length ?? 0;
+    }
+
+    await audit(actor, "product.publish_bulk", "product", categoryId ?? "todas", { published, ids });
+    revalidatePath("/", "layout"); // catálogo, categorías, fichas y panel
+    return { published };
   });
 }
 

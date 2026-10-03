@@ -1,5 +1,6 @@
 // Prueba del límite del chat (falla cerrado). Correr desde web/:
 //   npm test   (node --test --experimental-strip-types tests/*.test.mjs)
+// Los .ts que se prueban así no deben importar nada con alias "@/".
 // (Node 22.6+; en Node 23.6+ la bandera ya no hace falta).
 import { test } from "node:test";
 import assert from "node:assert/strict";
