@@ -20,8 +20,19 @@ Marcas usadas en el filtro: Barbie, Mattel, Hasbro, Lego, Disney (Frozen, Prince
 
 ## Paso 2: primer lote (50, marca + código + stock, ordenado por existencia)
 
-Lista en `t42-lote-001.csv`. Columnas `liga_foto`, `fuente`, `nivel`, `motivo` vacías.
+Resultado en `t42-lote-001.csv` (liga = ficha del producto, no URL directa de la imagen; no se descargó nada).
 
-**Bloqueado:** la herramienta de búsqueda web aparece, pero al usarla pide un permiso que no está concedido en la sesión de hm-agentd (las 10 primeras búsquedas fallaron por eso). Hay que dar permiso a WebSearch/WebFetch para arbolito o pasar el lote a otro proceso.
+| Nivel | Productos | Notas |
+|---|---|---|
+| muy_alta | 7 | Todos Mi Alegría, ficha en la tienda del fabricante |
+| alta | 10 | Libros Dreams Art, Fisher-Price, Crayola, Mega Bloks: mismo producto, falta confirmar color o edición |
+| media | 5 | La marca tiene varios modelos parecidos (Barbie clínica, Mandalorian, Apache) |
+| manual | 19 | 10 con código 489/697 de importadores genéricos, más genéricos y descontinuados |
+| pendiente | 9 | No se buscaron para medir el costo; quedan para el siguiente lote |
 
-Costo de este turno: solo lectura del seed y unas 15 llamadas a herramientas; 0 búsquedas web efectivas.
+Aprendizajes:
+- Buscar por código de barras **no sirve** (el buscador es de EE. UU. y devuelve basura). Funciona buscar por nombre y marca, limitado a tiendas de México y del fabricante.
+- Los códigos 489186… y 697… (importadores con licencia Disney/Marvel) casi nunca tienen ficha oficial: conviene mandarlos directo a manual sin buscar, igual que los genéricos.
+- Mi Alegría tiene catálogo completo en línea: es la marca con más rendimiento.
+
+Costo: 25 búsquedas web (5 de prueba por código, inútiles) para 41 productos clasificados, 22 de ellos con liga. Proyección para los ~1,569 de la cola: muchos más que un turno; sugerencia: excluir 489/697 y buscar solo marcas fuertes.
