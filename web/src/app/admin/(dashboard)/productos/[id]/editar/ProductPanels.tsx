@@ -153,14 +153,14 @@ export function ImagePanel({ productId, imageUrl }: { productId: string; imageUr
           if (source.trim()) run(() => importProductImageFromUrl(productId, source), "Foto importada.", (data) => { if (data) setUrl(data.image_url); setSource(""); });
         }}
       >
-        <label className="text-xs font-medium text-muted-foreground" htmlFor="img-url">O pega la dirección de una imagen</label>
+        <label className="text-xs font-medium text-muted-foreground" htmlFor="img-url">O pega la liga del producto o de una imagen</label>
         <div className="flex gap-2">
           <Input id="img-url" type="url" value={source} onChange={(e) => setSource(e.target.value)} placeholder="https://…/foto.jpg" className="text-sm" />
           <Button type="submit" variant="outline" disabled={pending || !source.trim()} className="gap-1.5 shrink-0">
             <LinkIcon className="w-4 h-4" /> Importar
           </Button>
         </div>
-        <p className="text-xs text-muted-foreground">En Google Imágenes: abre la imagen → clic derecho → “Copiar dirección de la imagen”.</p>
+        <p className="text-xs text-muted-foreground">Sirve la liga de la página del producto (por ejemplo, en la tienda del fabricante): se toma su foto principal. Si no funciona, abre la imagen → clic derecho → “Copiar dirección de la imagen”.</p>
       </form>
       <Feedback error={error} done={done} />
     </section>

@@ -3,9 +3,11 @@ import { lookup } from "dns/promises";
 import { isIP } from "net";
 import sharp from "sharp";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { findPageImage } from "@/lib/page-image";
 
 const BUCKET = "product-images";
 const MAX_DOWNLOAD_BYTES = 10 * 1024 * 1024;
+const MAX_PAGE_BYTES = 3 * 1024 * 1024; // las meta og:image van en el <head>
 const MAX_SIDE = 1200;
 const MIN_SIDE = 200;
 
@@ -60,33 +62,31 @@ async function assertPublicUrl(raw: string): Promise<URL> {
   return url;
 }
 
-export async function downloadImage(raw: string): Promise<Buffer> {
+/** GET a una URL pública siguiendo redirecciones a mano, para validar cada destino. */
+async function fetchPublic(raw: string, accept: string): Promise<{ res: Response; url: URL }> {
   let url = await assertPublicUrl(raw.trim());
-  let res: Response | undefined;
-  // Seguir redirecciones a mano para validar cada destino.
   for (let hop = 0; hop < 4; hop++) {
-    res = await fetch(url, {
+    const res = await fetch(url, {
       redirect: "manual",
       signal: AbortSignal.timeout(10_000),
-      headers: { "User-Agent": "ElArbolitoBot/1.0 (+catalogo)", Accept: "image/*" },
+      headers: { "User-Agent": "ElArbolitoBot/1.0 (+catalogo)", Accept: accept },
     }).catch(() => {
-      throw new ImageError("No se pudo descargar la imagen (el sitio no respondió).");
+      throw new ImageError("No se pudo descargar (el sitio no respondió).");
     });
     const location = res.headers.get("location");
     if (res.status >= 300 && res.status < 400 && location) {
       url = await assertPublicUrl(new URL(location, url).toString());
       continue;
     }
-    break;
+    if (!res.ok) throw new ImageError(`El sitio respondió con error ${res.status}.`);
+    return { res, url };
   }
-  if (!res || !res.ok) throw new ImageError(`El sitio respondió con error ${res?.status ?? ""}.`);
+  throw new ImageError("La URL redirige demasiadas veces.");
+}
 
-  const type = res.headers.get("content-type") ?? "";
-  if (!type.startsWith("image/")) {
-    throw new ImageError("Esa URL es una página, no una imagen. Abre la imagen y usa \"Copiar dirección de la imagen\".");
-  }
-  if (Number(res.headers.get("content-length") ?? 0) > MAX_DOWNLOAD_BYTES) throw new ImageError("La imagen pesa más de 10 MB.");
-
+/** Lee el cuerpo con tope de tamaño (content-length puede faltar o mentir). */
+async function readCapped(res: Response, maxBytes: number, tooBig: string): Promise<Buffer> {
+  if (Number(res.headers.get("content-length") ?? 0) > maxBytes) throw new ImageError(tooBig);
   const reader = res.body?.getReader();
   if (!reader) throw new ImageError("La descarga llegó vacía.");
   const chunks: Uint8Array[] = [];
@@ -95,13 +95,39 @@ export async function downloadImage(raw: string): Promise<Buffer> {
     const { done, value } = await reader.read();
     if (done) break;
     total += value.byteLength;
-    if (total > MAX_DOWNLOAD_BYTES) {
+    if (total > maxBytes) {
       await reader.cancel();
-      throw new ImageError("La imagen pesa más de 10 MB.");
+      throw new ImageError(tooBig);
     }
     chunks.push(value);
   }
   return Buffer.concat(chunks);
+}
+
+/**
+ * Descarga la imagen de una URL. Si la URL es la ficha del producto (HTML), toma
+ * la foto principal que declara la página (og:image) y descarga esa.
+ */
+export async function downloadImage(raw: string): Promise<Buffer> {
+  const { res, url } = await fetchPublic(raw, "image/*,text/html;q=0.8");
+  const type = (res.headers.get("content-type") ?? "").toLowerCase();
+  if (type.startsWith("image/")) return readCapped(res, MAX_DOWNLOAD_BYTES, "La imagen pesa más de 10 MB.");
+
+  if (!type.startsWith("text/html") && !type.startsWith("application/xhtml")) {
+    throw new ImageError("Esa URL no es una imagen ni la página de un producto.");
+  }
+  const html = (await readCapped(res, MAX_PAGE_BYTES, "La página es demasiado grande para leerla.")).toString("utf8");
+  const imageUrl = findPageImage(html, url.toString());
+  if (!imageUrl) {
+    throw new ImageError("Esa página no indica su foto principal. Abre la imagen y usa \"Copiar dirección de la imagen\".");
+  }
+
+  // Un solo salto: la foto declarada debe ser una imagen, no otra página.
+  const img = await fetchPublic(imageUrl, "image/*");
+  if (!(img.res.headers.get("content-type") ?? "").toLowerCase().startsWith("image/")) {
+    throw new ImageError("La foto que indica la página no se pudo abrir como imagen. Copia la dirección de la imagen a mano.");
+  }
+  return readCapped(img.res, MAX_DOWNLOAD_BYTES, "La imagen pesa más de 10 MB.");
 }
 
 // --- Guardar en Storage --------------------------------------------------------
